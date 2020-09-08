@@ -37,6 +37,7 @@ module ActiveMerchant #:nodoc:
     end
 
     def ssl_post(endpoint, data, headers = {})
+      puts "here #{data}"
       ssl_request(:post, endpoint, data, headers)
     end
 
@@ -70,7 +71,9 @@ module ActiveMerchant #:nodoc:
 
       connection.proxy_address = proxy_address
       connection.proxy_port    = proxy_port
-
+      puts method
+      puts data
+      puts headers
       connection.request(method, data, headers)
     end
 
@@ -81,6 +84,7 @@ module ActiveMerchant #:nodoc:
     end
 
     def handle_response(response)
+      puts response.inspect
       case response.code.to_i
       when 200...300
         response.body
