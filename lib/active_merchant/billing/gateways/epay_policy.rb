@@ -22,21 +22,22 @@ module ActiveMerchant #:nodoc:
 
       def purchase(money, payment, options = {})
         post = {}
-        post[:payer] = options[:payer]
         post[:amount] = amount(money)
-        post[:payerFee] = options[:payer_fee] || 0
-        post[:comments] = options[:comments] if options[:comments]
-        post[:emailAddress] = options[:email] if options[:email]
         add_payment_details(post, payment, options)
-        commit("/transactions", post)
+        commit(payment.class == String ? "/transactions/authorize" : "/transactions", post)
       end
 
       private
 
       def add_payment_details(post, payment, options)
         if payment.class == String
-          post[:tokenId] = payment
+          puts "Payment will be processed with tokenId #{payment}"
+          post[:tokenId] = payment 
         else
+          post[:payer] = options[:payer]
+          post[:payerFee] = options[:payer_fee] || 0
+          post[:comments] = options[:comments] if options[:comments]
+          post[:emailAddress] = options[:email] if options[:email]
           card = {}
           card[:cardNumber] = payment.number
           card[:month] = payment.month
