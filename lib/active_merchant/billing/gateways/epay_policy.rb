@@ -68,11 +68,10 @@ module ActiveMerchant #:nodoc:
         begin
           raw_response = ssl_post("#{url}#{path}", data.to_json, headers)
         rescue ResponseError => e
-          puts e.inspect
           return {success: false, error: e.to_s}
           # raw_response = e.response.body
         end
-        puts "here #{raw_response}"
+        puts "Epay res #{raw_response}"
         return{success: true, res: raw_response}
       end
 
