@@ -82,11 +82,6 @@ module ActiveMerchant #:nodoc:
     def handle_response(response)
       case response.code.to_i
       when 200...300
-        if response.body.empty?
-          body = {}
-          body['header'] = response.header.to_hash
-          return body
-        end
         response.body
       else
         raise ResponseError.new(response)
