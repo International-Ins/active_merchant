@@ -22,16 +22,16 @@ module ActiveMerchant #:nodoc:
 
       def purchase(money, payment, options = {})
         post = {}
-        post[:amount] = amount(money)
+        post[:amount] = amount(money.to_f/100)
         add_payment_details(post, payment, options)
-        commit(payment.class == String ? "/transactions/authorize" : "/transactions", post)
+        res = commit(payment.class == String ? "/transactions/authorize" : "/transactions", post, http_method: 'post')
+        res = commit("/transactions/#{res.params['header']['location'].first.split('/').last}", {}, http_method: 'get')
       end
 
       private
 
       def add_payment_details(post, payment, options)
         if payment.class == String
-          puts "Payment will be processed with tokenId #{payment}"
           post[:tokenId] = payment 
         else
           post[:payer] = options[:payer]
@@ -50,8 +50,8 @@ module ActiveMerchant #:nodoc:
         end
       end
 
-      def commit(path, params)
-        response = api_request(path, params)
+      def commit(path, params, http_method:)
+        response = api_request(path, params, http_method: http_method)
         success = response[:error].nil?
         message = (success ? "Transaction succeeded" : response[:error])
         Response.new(
@@ -64,15 +64,14 @@ module ActiveMerchant #:nodoc:
         )
       end
 
-      def api_request(path, data)
+      def api_request(path, data, http_method: )
         raw_response = nil
         begin
-          raw_response = ssl_post("#{url}#{path}", data.to_json, headers)
+          raw_response = http_method == 'get' ? self.send("ssl_#{http_method}".to_sym, "#{url}#{path}", headers) : self.send("ssl_#{http_method}".to_sym, "#{url}#{path}", data.to_json, headers)
         rescue ResponseError => e
           return {success: false, error: e.to_s}
           # raw_response = e.response.body
         end
-        puts "Epay res #{raw_response}"
         return{success: true, res: raw_response}
       end
 

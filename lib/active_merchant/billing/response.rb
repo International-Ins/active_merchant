@@ -20,6 +20,7 @@ module ActiveMerchant #:nodoc:
 
       def initialize(success, message, params = {}, options = {})
         params = {} if params.nil? || params.empty?
+        params = JSON.parse(params) if params.is_a? String
         @success, @message, @params = success, message, params.stringify_keys
         @test = options[:test] || false
         @authorization = options[:authorization]
