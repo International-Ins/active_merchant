@@ -1,7 +1,7 @@
 require 'rexml/document'
 
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     # This class implements the Psigate gateway for the ActiveMerchant module.
     #
     # Modifications by Sean O'Hara ( sohara at sohara dot com )
@@ -38,7 +38,7 @@ module ActiveMerchant #:nodoc:
       self.test_url  = 'https://realtimestaging.psigate.com/xml'
       self.live_url  = 'https://realtime.psigate.com/xml'
 
-      self.supported_cardtypes = [:visa, :master, :american_express]
+      self.supported_cardtypes = %i[visa master american_express]
       self.supported_countries = ['CA']
       self.homepage_url = 'http://www.psigate.com/'
       self.display_name = 'Psigate'
@@ -102,7 +102,10 @@ module ActiveMerchant #:nodoc:
       def commit(money, creditcard, options = {})
         response = parse(ssl_post(url, post_data(money, creditcard, options)))
 
-        Response.new(successful?(response), message_from(response), response,
+        Response.new(
+          successful?(response),
+          message_from(response),
+          response,
           test: test?,
           authorization: build_authorization(response),
           avs_result: { code: response[:avsresult] },
@@ -119,7 +122,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def parse(xml)
-        response = {message: 'Global Error Receipt', complete: false}
+        response = { message: 'Global Error Receipt', complete: false }
 
         xml = REXML::Document.new(xml)
         xml.elements.each('//Result/*') do |node|
@@ -163,7 +166,7 @@ module ActiveMerchant #:nodoc:
           SubTotal: amount(money),
           Tax1: options[:tax1],
           Tax2: options[:tax2],
-          ShippingTotal: options[:shipping_total],
+          ShippingTotal: options[:shipping_total]
         }
 
         if creditcard

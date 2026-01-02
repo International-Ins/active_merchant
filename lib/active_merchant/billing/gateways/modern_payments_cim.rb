@@ -1,6 +1,6 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
-    class ModernPaymentsCimGateway < Gateway #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
+    class ModernPaymentsCimGateway < Gateway # :nodoc:
       self.test_url = 'https://secure.modpay.com/netservices/test/ModpayTest.asmx'
       self.live_url = 'https://secure.modpay.com/ws/modpay.asmx'
 
@@ -8,7 +8,7 @@ module ActiveMerchant #:nodoc:
       TEST_XMLNS = 'https://secure.modpay.com/netservices/test/'
 
       self.supported_countries = ['US']
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover]
+      self.supported_cardtypes = %i[visa master american_express discover]
       self.homepage_url = 'http://www.modpay.com'
       self.display_name = 'Modern Payments'
 
@@ -111,13 +111,12 @@ module ActiveMerchant #:nodoc:
       end
 
       def build_request(action, params)
+        envelope_obj = { 'xmlns:xsd' => 'http://www.w3.org/2001/XMLSchema',
+          'xmlns:env' => 'http://schemas.xmlsoap.org/soap/envelope/',
+          'xmlns:xsi' => 'http://www.w3.org/2001/XMLSchema-instance' }
         xml = Builder::XmlMarkup.new indent: 2
         xml.instruct!
-        xml.tag! 'env:Envelope',
-          { 'xmlns:xsd' => 'http://www.w3.org/2001/XMLSchema',
-            'xmlns:env' => 'http://schemas.xmlsoap.org/soap/envelope/',
-            'xmlns:xsi' => 'http://www.w3.org/2001/XMLSchema-instance' } do
-
+        xml.tag! 'env:Envelope', envelope_obj do
           xml.tag! 'env:Body' do
             xml.tag! action, { 'xmlns' => xmlns(action) } do
               xml.tag! 'clientId', @options[:login]
@@ -146,13 +145,20 @@ module ActiveMerchant #:nodoc:
       end
 
       def commit(action, params)
-        data = ssl_post(url(action), build_request(action, params),
-          { 'Content-Type' => 'text/xml; charset=utf-8',
-            'SOAPAction' => "#{xmlns(action)}#{action}" }
+        data = ssl_post(
+          url(action),
+          build_request(action, params),
+          {
+            'Content-Type' => 'text/xml; charset=utf-8',
+            'SOAPAction' => "#{xmlns(action)}#{action}"
+          }
         )
 
         response = parse(action, data)
-        Response.new(successful?(action, response), message_from(action, response), response,
+        Response.new(
+          successful?(action, response),
+          message_from(action, response),
+          response,
           test: test?,
           authorization: authorization_from(action, response),
           avs_result: { code: response[:avs_code] }

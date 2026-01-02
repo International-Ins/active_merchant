@@ -1,5 +1,5 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class SecurionPayGateway < Gateway
       self.test_url = 'https://api.securionpay.com/'
       self.live_url = 'https://api.securionpay.com/'
@@ -9,7 +9,7 @@ module ActiveMerchant #:nodoc:
 
       self.default_currency = 'USD'
       self.money_format = :cents
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :jcb, :diners_club]
+      self.supported_cardtypes = %i[visa master american_express discover jcb diners_club]
 
       self.homepage_url = 'https://securionpay.com/'
       self.display_name = 'SecurionPay'
@@ -31,17 +31,17 @@ module ActiveMerchant #:nodoc:
         'expired_token' => STANDARD_ERROR_CODE[:card_declined]
       }
 
-      def initialize(options={})
+      def initialize(options = {})
         requires!(options, :secret_key)
         super
       end
 
-      def purchase(money, payment, options={})
+      def purchase(money, payment, options = {})
         post = create_post_for_auth_or_purchase(money, payment, options)
         commit('charges', post, options)
       end
 
-      def authorize(money, payment, options={})
+      def authorize(money, payment, options = {})
         post = create_post_for_auth_or_purchase(money, payment, options)
         post[:captured] = 'false'
         commit('charges', post, options)
@@ -63,7 +63,7 @@ module ActiveMerchant #:nodoc:
         commit("charges/#{CGI.escape(authorization)}/refund", {}, options)
       end
 
-      def verify(credit_card, options={})
+      def verify(credit_card, options = {})
         MultiResponse.run(:use_first_response) do |r|
           r.process { authorize(100, credit_card, options) }
           r.process(:ignore_result) { void(r.authorization, options) }
@@ -133,11 +133,46 @@ module ActiveMerchant #:nodoc:
         add_creditcard(post, payment, options)
         add_customer(post, payment, options)
         add_customer_data(post, options)
+        add_external_three_ds(post, options)
         if options[:email]
           post[:metadata] = {}
           post[:metadata][:email] = options[:email]
         end
         post
+      end
+
+      def add_external_three_ds(post, options)
+        return if options[:three_d_secure].blank?
+
+        post[:threeDSecure] = {
+          external: {
+            version: options[:three_d_secure][:version],
+            authenticationValue: options[:three_d_secure][:cavv],
+            acsTransactionId: options[:three_d_secure][:acs_transaction_id],
+            status: options[:three_d_secure][:authentication_response_status],
+            eci: options[:three_d_secure][:eci]
+          }.merge(xid_or_ds_trans_id(options[:three_d_secure]))
+        }
+      end
+
+      def xid_or_ds_trans_id(three_ds)
+        if three_ds[:version].to_f >= 2.0
+          { dsTransactionId: three_ds[:ds_transaction_id] }
+        else
+          { xid: three_ds[:xid] }
+        end
+      end
+
+      def validate_three_ds_params(three_ds)
+        errors = {}
+        supported_version = %w{1.0.2 2.1.0 2.2.0}.include?(three_ds[:version])
+        supported_auth_response = ['Y', 'N', 'U', 'R', 'E', 'A', nil].include?(three_ds[:status])
+
+        errors[:three_ds_version] = 'ThreeDs version not supported' unless supported_version
+        errors[:auth_response] = 'Authentication response value not supported' unless supported_auth_response
+        errors.compact!
+
+        errors.present? ? Response.new(false, 'ThreeDs data is invalid', errors) : nil
       end
 
       def add_amount(post, money, options, include_currency = false)
@@ -158,7 +193,8 @@ module ActiveMerchant #:nodoc:
           post[:card] = card
           add_address(post, options)
         elsif creditcard.kind_of?(String)
-          post[:card] = creditcard
+          key = creditcard.match(/^pm_/) ? :paymentMethod : :card
+          post[key] = creditcard
         else
           raise ArgumentError.new("Unhandled payment method #{creditcard.class}.")
         end
@@ -182,26 +218,43 @@ module ActiveMerchant #:nodoc:
       end
 
       def commit(url, parameters = nil, options = {}, method = nil)
-        response = api_request(url, parameters, options, method)
-        success = !response.key?('error')
+        if parameters.present? && parameters[:threeDSecure].present?
+          three_ds_errors = validate_three_ds_params(parameters[:threeDSecure][:external])
+          return three_ds_errors if three_ds_errors
+        end
 
-        Response.new(success,
+        response = api_request(url, parameters, options, method)
+        success = success?(response)
+
+        Response.new(
+          success,
           (success ? 'Transaction approved' : response['error']['message']),
           response,
           test: test?,
-          authorization: (success ? response['id'] : response['error']['charge']),
+          authorization: authorization_from(url, response),
           error_code: (success ? nil : STANDARD_ERROR_CODE_MAPPING[response['error']['code']])
         )
+      end
+
+      def authorization_from(action, response)
+        if action == 'customers' && success?(response) && response['cards'].present?
+          response['cards'].first['id']
+        else
+          success?(response) ? response['id'] : (response.dig('error', 'charge') || response.dig('error', 'chargeId'))
+        end
+      end
+
+      def success?(response)
+        !response.key?('error')
       end
 
       def headers(options = {})
         secret_key = options[:secret_key] || @options[:secret_key]
 
-        headers = {
+        {
           'Authorization' => 'Basic ' + Base64.encode64(secret_key.to_s + ':').strip,
           'User-Agent' => "SecurionPay/v1 ActiveMerchantBindings/#{ActiveMerchant::VERSION}"
         }
-        headers
       end
 
       def response_error(raw_response)
@@ -248,8 +301,8 @@ module ActiveMerchant #:nodoc:
         response
       end
 
-      def json_error(raw_response)
-        msg = 'Invalid response received from the SecurionPay API.'
+      def json_error(raw_response, gateway_name = 'SecurionPay')
+        msg = "Invalid response received from the #{gateway_name} API."
         msg += "  (The raw response returned by the API was #{raw_response.inspect})"
         {
           'error' => {
@@ -259,7 +312,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def test?
-        (@options[:secret_key]&.include?('_test_'))
+        @options[:secret_key]&.include?('_test_')
       end
     end
   end

@@ -1,11 +1,11 @@
 require File.join(File.dirname(__FILE__), '..', 'check.rb')
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class InspireGateway < Gateway
       self.live_url = self.test_url = 'https://secure.inspiregateway.net/api/transact.php'
 
       self.supported_countries = ['US']
-      self.supported_cardtypes = [:visa, :master, :american_express]
+      self.supported_cardtypes = %i[visa master american_express]
       self.homepage_url = 'http://www.inspiregateway.com'
       self.display_name = 'Inspire Commerce'
 
@@ -96,7 +96,7 @@ module ActiveMerchant #:nodoc:
         authorize(100, creditcard, options.merge(store: billing_id))
       end
 
-      alias_method :unstore, :delete
+      alias unstore delete
 
       private
 
@@ -124,7 +124,7 @@ module ActiveMerchant #:nodoc:
         post[:orderdescription] = options[:description]
       end
 
-      def add_payment_source(params, source, options={})
+      def add_payment_source(params, source, options = {})
         case determine_funding_source(source)
         when :vault       then add_customer_vault_id(params, source)
         when :credit_card then add_creditcard(params, source, options)
@@ -172,7 +172,9 @@ module ActiveMerchant #:nodoc:
 
         response = parse(ssl_post(self.live_url, post_data(action, parameters)))
 
-        Response.new(response['response'] == '1', message_from(response), response,
+        Response.new(
+          response['response'] == '1',
+          message_from(response), response,
           authorization: response['transactionid'],
           test: test?,
           cvv_result: response['cvvresponse'],
@@ -197,8 +199,7 @@ module ActiveMerchant #:nodoc:
         post[:password]   = @options[:password]
         post[:type]       = action if action
 
-        request = post.merge(parameters).map { |key, value| "#{key}=#{CGI.escape(value.to_s)}" }.join('&')
-        request
+        post.merge(parameters).map { |key, value| "#{key}=#{CGI.escape(value.to_s)}" }.join('&')
       end
 
       def determine_funding_source(source)

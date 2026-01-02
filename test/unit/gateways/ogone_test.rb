@@ -41,6 +41,10 @@ class OgoneTest < Test::Unit::TestCase
     Base.mode = :test
   end
 
+  def test_should_have_homepage_url
+    assert_equal 'https://www.ingenico.com/login/ogone/', OgoneGateway.homepage_url
+  end
+
   def test_successful_purchase
     @gateway.expects(:add_pair).at_least(1)
     @gateway.expects(:add_pair).with(anything, 'ECI', '7')
@@ -254,11 +258,11 @@ class OgoneTest < Test::Unit::TestCase
   end
 
   def test_supported_countries
-    assert_equal ['BE', 'DE', 'FR', 'NL', 'AT', 'CH'], OgoneGateway.supported_countries
+    assert_equal %w[BE DE FR NL AT CH], OgoneGateway.supported_countries
   end
 
   def test_supported_card_types
-    assert_equal [:visa, :master, :american_express, :diners_club, :discover, :jcb, :maestro], OgoneGateway.supported_cardtypes
+    assert_equal %i[visa master american_express diners_club discover jcb maestro], OgoneGateway.supported_cardtypes
   end
 
   def test_default_currency
@@ -449,23 +453,44 @@ class OgoneTest < Test::Unit::TestCase
     assert_equal @gateway.scrub(pre_scrub), post_scrub
   end
 
+  def test_signatire_calculation_with_with_space
+    payload = {
+      orderID: 'abc123',
+      currency: 'EUR',
+      amount: '100',
+      PM: 'CreditCard',
+      ACCEPTANCE: 'test123',
+      STATUS: '9',
+      CARDNO: 'XXXXXXXXXXXX3310',
+      ED: '1029',
+      DCC_INDICATOR: '0',
+      DCC_EXCHRATE: ''
+    }
+
+    signature_with = @gateway.send(:calculate_signature, payload, 'sha512', 'ABC123')
+    payload.delete(:DCC_EXCHRATE)
+    signature_without = @gateway.send(:calculate_signature, payload, 'sha512', 'ABC123')
+
+    assert_equal signature_without, signature_with
+  end
+
   private
 
   def string_to_digest
     'ALIAS=2mynicesigAMOUNT=100mynicesigCARDNO=4111111111111111mynicesig'\
-    'CN=Client NamemynicesigCURRENCY=EURmynicesigOPERATION=RESmynicesig'\
-    'ORDERID=1mynicesigPSPID=MrPSPIDmynicesig'
+      'CN=Client NamemynicesigCURRENCY=EURmynicesigOPERATION=RESmynicesig'\
+      'ORDERID=1mynicesigPSPID=MrPSPIDmynicesig'
   end
 
   def d3d_string_to_digest
     'ALIAS=2mynicesigAMOUNT=100mynicesigCARDNO=4111111111111111mynicesig'\
-    'CN=Client NamemynicesigCURRENCY=EURmynicesigFLAG3D=Ymynicesig'\
-    'HTTP_ACCEPT=*/*mynicesigOPERATION=RESmynicesigORDERID=1mynicesig'\
-    'PSPID=MrPSPIDmynicesigWIN3DS=MAINWmynicesig'
+      'CN=Client NamemynicesigCURRENCY=EURmynicesigFLAG3D=Ymynicesig'\
+      'HTTP_ACCEPT=*/*mynicesigOPERATION=RESmynicesigORDERID=1mynicesig'\
+      'PSPID=MrPSPIDmynicesigWIN3DS=MAINWmynicesig'
   end
 
   def successful_authorize_response
-    <<-END
+    <<-XML
       <?xml version="1.0"?><ncresponse
         orderID="1233680882919266242708828"
         PAYID="3014726"
@@ -486,11 +511,11 @@ class OgoneTest < Test::Unit::TestCase
         BRAND="VISA"
         ALIAS="2">
       </ncresponse>
-    END
+    XML
   end
 
   def successful_purchase_response
-    <<-END
+    <<-XML
       <?xml version="1.0"?><ncresponse
         orderID="1233680882919266242708828"
         PAYID="3014726"
@@ -511,11 +536,11 @@ class OgoneTest < Test::Unit::TestCase
         BRAND="VISA"
         ALIAS="#{@billing_id}">
       </ncresponse>
-    END
+    XML
   end
 
   def successful_purchase_response_100
-    <<-END
+    <<-XML
       <?xml version="1.0"?><ncresponse
         orderID="1233680882919266242708828"
         PAYID="3014726"
@@ -536,11 +561,11 @@ class OgoneTest < Test::Unit::TestCase
         BRAND="VISA"
         ALIAS="#{@billing_id}">
       </ncresponse>
-    END
+    XML
   end
 
   def successful_3dsecure_purchase_response
-    <<-END
+    <<-XML
       <?xml version="1.0"?><ncresponse
         orderID="1233680882919266242708828"
         PAYID="3014726"
@@ -633,11 +658,11 @@ class OgoneTest < Test::Unit::TestCase
         cmV0dXJuIDE7CiAgfQp9CnNlbGYuZG9jdW1lbnQuZm9ybXMuZG93bmxvYWRm
         b3JtM0Quc3VibWl0KCk7Ci8vLS0+CjwvU0NSSVBUPgo=\n</HTML_ANSWER>
       </ncresponse>
-    END
+    XML
   end
 
   def failed_purchase_response
-    <<-END
+    <<-XML
       <?xml version="1.0"?>
       <ncresponse
       orderID=""
@@ -653,11 +678,11 @@ class OgoneTest < Test::Unit::TestCase
       BRAND=""
       ALIAS="2">
       </ncresponse>
-    END
+    XML
   end
 
   def successful_capture_response
-    <<-END
+    <<-XML
       <?xml version="1.0"?>
       <ncresponse
       orderID="1234956106974734203514539"
@@ -672,11 +697,11 @@ class OgoneTest < Test::Unit::TestCase
       currency="EUR"
       ALIAS="2">
       </ncresponse>
-    END
+    XML
   end
 
   def successful_void_response
-    <<-END
+    <<-XML
     <?xml version="1.0"?>
     <ncresponse
     orderID="1234961140253559268757474"
@@ -691,11 +716,11 @@ class OgoneTest < Test::Unit::TestCase
     currency="EUR"
     ALIAS="2">
     </ncresponse>
-    END
+    XML
   end
 
   def successful_referenced_credit_response
-    <<-END
+    <<-XML
     <?xml version="1.0"?>
     <ncresponse
     orderID="1234976251872867104376350"
@@ -710,11 +735,11 @@ class OgoneTest < Test::Unit::TestCase
     currency="EUR"
     ALIAS="2">
     </ncresponse>
-    END
+    XML
   end
 
   def successful_unreferenced_credit_response
-    <<-END
+    <<-XML
     <?xml version="1.0"?><ncresponse
     orderID="1234976330656672481134758"
     PAYID="3049654"
@@ -735,11 +760,11 @@ class OgoneTest < Test::Unit::TestCase
     BRAND="VISA"
     ALIAS="2">
     </ncresponse>
-    END
+    XML
   end
 
   def failed_authorization_response
-    <<-END
+    <<-XML
     <?xml version="1.0"?>
     <ncresponse
     orderID="#1019.22"
@@ -755,7 +780,7 @@ class OgoneTest < Test::Unit::TestCase
     BRAND=""
     ALIAS="2">
     </ncresponse>
-    END
+    XML
   end
 
   def pre_scrub

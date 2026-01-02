@@ -256,6 +256,26 @@ class QuickBooksTest < Test::Unit::TestCase
     assert_equal 'AuthorizationFailed', response.error_code
   end
 
+  def test_base_path_includes_version
+    assert_includes @oauth_1_gateway.base_path, '/v4/'
+    assert_includes @oauth_2_gateway.base_path, '/v4/'
+  end
+
+  def test_default_version_in_endpoint_url
+    assert_match(%r{/v4/payments/charges\z}, @oauth_1_gateway.endpoint)
+    assert_match(%r{/v4/payments/charges\z}, @oauth_2_gateway.endpoint)
+  end
+
+  def test_request_url_includes_version
+    [@oauth_1_gateway, @oauth_2_gateway].each do |gateway|
+      stub_comms(gateway) do
+        gateway.purchase(@amount, @credit_card, @options)
+      end.check_request do |endpoint, _data, _headers|
+        assert_match(%r{/quickbooks/v4/payments/charges\z}, endpoint)
+      end.respond_with(successful_purchase_response)
+    end
+  end
+
   private
 
   def pre_scrubbed_small_json
@@ -510,7 +530,7 @@ class QuickBooksTest < Test::Unit::TestCase
       starting SSL for sandbox.api.intuit.com:443...
       SSL established
       <- "POST /quickbooks/v4/payments/charges HTTP/1.1\r\nContent-Type: application/json\r\nRequest-Id: f8b0ce95a6e5fe249b52b23112443221\r\nAuthorization: OAuth realm=\"1292767175\", oauth_consumer_key=\"qyprdSPSxCNr5XLx0Px6g4h43zRcl6\", oauth_nonce=\"aZgGttabmZeU8ST6OjhUEMYWg7HLoyxZirBLJZVeA\", oauth_signature=\"iltPw94HHT7QCuEPTJ4RnfwY%2FzU%3D\", oauth_signature_method=\"HMAC-SHA1\", oauth_timestamp=\"1418937070\", oauth_token=\"qyprdDJJpRXRsoLDQMqaDk68c4ovXjMMVL2Wzs9RI0VNb52B\", oauth_version=\"1.0\"\r\nAccept-Encoding: gzip;q=1.0,deflate;q=0.6,identity;q=0.3\r\nAccept: */*\r\nUser-Agent: Ruby\r\nConnection: close\r\nHost: sandbox.api.intuit.com\r\nContent-Length: 265\r\n\r\n"
-      <- "{\"amount\":\"1.00\",\"currency\":\"USD\",\"card\":{\"number\":\"4000100011112224\",\"expMonth\":\"09\",\"expYear\":2015,\"cvc\":\"123\",\"name\":\"Longbob Longsen\",\"address\":{\"streetAddress\":\"1234 My Street\",\"city\":\"Ottawa\",\"region\":\"CA\",\"country\":\"US\",\"postalCode\":90210}},\"capture\":\"true\"}"
+      <- "{\"amount\":\"1.00\",\"currency\":\"USD\",\"card\":{\"number\\\":\\\"4000100011112224\",\"expMonth\":\"09\",\"expYear\":2015,\"cvc\\\":\\\"123\",\"name\":\"Longbob Longsen\",\"address\":{\"streetAddress\":\"1234 My Street\",\"city\":\"Ottawa\",\"region\":\"CA\",\"country\":\"US\",\"postalCode\":90210}},\"capture\":\"true\"}"
       -> "HTTP/1.1 201 Created\r\n"
       -> "Date: Thu, 18 Dec 2014 21:11:11 GMT\r\n"
       -> "Content-Type: application/json;charset=utf-8\r\n"
@@ -541,7 +561,7 @@ class QuickBooksTest < Test::Unit::TestCase
       starting SSL for sandbox.api.intuit.com:443...
       SSL established
       <- "POST /quickbooks/v4/payments/charges HTTP/1.1\r\nContent-Type: application/json\r\nRequest-Id: f8b0ce95a6e5fe249b52b23112443221\r\nAuthorization: OAuth realm=\"[FILTERED]\", oauth_consumer_key=\"[FILTERED]\", oauth_nonce=\"[FILTERED]\", oauth_signature=\"[FILTERED]\", oauth_signature_method=\"HMAC-SHA1\", oauth_timestamp=\"1418937070\", oauth_token=\"[FILTERED]\", oauth_version=\"1.0\"\r\nAccept-Encoding: gzip;q=1.0,deflate;q=0.6,identity;q=0.3\r\nAccept: */*\r\nUser-Agent: Ruby\r\nConnection: close\r\nHost: sandbox.api.intuit.com\r\nContent-Length: 265\r\n\r\n"
-      <- "{\"amount\":\"1.00\",\"currency\":\"USD\",\"card\":{\"number\":\"[FILTERED]\",\"expMonth\":\"09\",\"expYear\":2015,\"cvc\":\"[FILTERED]\",\"name\":\"Longbob Longsen\",\"address\":{\"streetAddress\":\"1234 My Street\",\"city\":\"Ottawa\",\"region\":\"CA\",\"country\":\"US\",\"postalCode\":90210}},\"capture\":\"true\"}"
+      <- "{\"amount\":\"1.00\",\"currency\":\"USD\",\"card\":{\"number\\\":\\\"[FILTERED]\",\"expMonth\":\"09\",\"expYear\":2015,\"cvc\\\":\\\"[FILTERED]\",\"name\":\"Longbob Longsen\",\"address\":{\"streetAddress\":\"1234 My Street\",\"city\":\"Ottawa\",\"region\":\"CA\",\"country\":\"US\",\"postalCode\":90210}},\"capture\":\"true\"}"
       -> "HTTP/1.1 201 Created\r\n"
       -> "Date: Thu, 18 Dec 2014 21:11:11 GMT\r\n"
       -> "Content-Type: application/json;charset=utf-8\r\n"

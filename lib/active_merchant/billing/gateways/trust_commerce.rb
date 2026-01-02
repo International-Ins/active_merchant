@@ -4,8 +4,8 @@ rescue LoadError
   # Falls back to an SSL post to TrustCommerce
 end
 
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     # TO USE:
     # First, make sure you have everything setup correctly and all of your dependencies in place with:
     #
@@ -67,7 +67,7 @@ module ActiveMerchant #:nodoc:
     class TrustCommerceGateway < Gateway
       self.live_url = self.test_url = 'https://vault.trustcommerce.com/trans/'
 
-      SUCCESS_TYPES = ['approved', 'accepted']
+      SUCCESS_TYPES = %w[approved accepted]
 
       DECLINE_CODES = {
         'decline'       => 'The credit card was declined',
@@ -107,7 +107,7 @@ module ActiveMerchant #:nodoc:
       VOIDABLE_ACTIONS = %w(preauth sale postauth credit)
 
       self.money_format = :cents
-      self.supported_cardtypes = [:visa, :master, :discover, :american_express, :diners_club, :jcb]
+      self.supported_cardtypes = %i[visa master discover american_express diners_club jcb]
       self.supported_countries = ['US']
       self.homepage_url = 'http://www.trustcommerce.com/'
       self.display_name = 'TrustCommerce'
@@ -151,7 +151,7 @@ module ActiveMerchant #:nodoc:
 
       def authorize(money, creditcard_or_billing_id, options = {})
         parameters = {
-          amount: amount(money),
+          amount: amount(money)
         }
 
         add_order_id(parameters, options)
@@ -168,7 +168,7 @@ module ActiveMerchant #:nodoc:
       # to process a purchase are an amount in cents or a money object and a creditcard object or billingid string.
       def purchase(money, creditcard_or_billing_id, options = {})
         parameters = {
-          amount: amount(money),
+          amount: amount(money)
         }
 
         add_order_id(parameters, options)
@@ -185,10 +185,10 @@ module ActiveMerchant #:nodoc:
       # postauth, we preserve active_merchant's nomenclature of capture() for consistency with the rest of the library. To process
       # a postauthorization with TC, you need an amount in cents or a money object, and a TC transid.
       def capture(money, authorization, options = {})
-        transaction_id, _ = split_authorization(authorization)
+        transaction_id, = split_authorization(authorization)
         parameters = {
           amount: amount(money),
-          transid: transaction_id,
+          transid: transaction_id
         }
         add_aggregator(parameters, options)
         add_custom_fields(parameters, options)
@@ -199,7 +199,7 @@ module ActiveMerchant #:nodoc:
       # refund() allows you to return money to a card that was previously billed. You need to supply the amount, in cents or a money object,
       # that you want to refund, and a TC transid for the transaction that you are refunding.
       def refund(money, identification, options = {})
-        transaction_id, _ = split_authorization(identification)
+        transaction_id, = split_authorization(identification)
 
         parameters = {
           amount: amount(money),
@@ -239,13 +239,19 @@ module ActiveMerchant #:nodoc:
         action = (VOIDABLE_ACTIONS - ['preauth']).include?(original_action) ? 'void' : 'reversal'
 
         parameters = {
-          transid: transaction_id,
+          transid: transaction_id
         }
 
         add_aggregator(parameters, options)
         add_custom_fields(parameters, options)
 
         commit(action, parameters)
+      end
+
+      def verify(credit_card, options = {})
+        parameters = {}
+        add_creditcard(parameters, credit_card)
+        commit('verify', parameters)
       end
 
       # recurring() a TrustCommerce account that is activated for Citadel, TrustCommerce's
@@ -262,7 +268,7 @@ module ActiveMerchant #:nodoc:
       def recurring(money, creditcard, options = {})
         ActiveMerchant.deprecated RECURRING_DEPRECATION_MESSAGE
 
-        requires!(options, [:periodicity, :bimonthly, :monthly, :biweekly, :weekly, :yearly, :daily])
+        requires!(options, %i[periodicity bimonthly monthly biweekly weekly yearly daily])
 
         cycle =
           case options[:periodicity]
@@ -282,10 +288,10 @@ module ActiveMerchant #:nodoc:
 
         parameters = {
           amount: amount(money),
-          cycle: cycle,
+          cycle:,
           verify: options[:verify] || 'y',
           billingid: options[:billingid] || nil,
-          payments: options[:payments] || nil,
+          payments: options[:payments] || nil
         }
 
         add_creditcard(parameters, creditcard)
@@ -300,7 +306,7 @@ module ActiveMerchant #:nodoc:
       def store(creditcard, options = {})
         parameters = {
           verify: options[:verify] || 'y',
-          billingid: options[:billingid] || options[:billing_id] || nil,
+          billingid: options[:billingid] || options[:billing_id] || nil
         }
 
         add_creditcard(parameters, creditcard)
@@ -314,7 +320,7 @@ module ActiveMerchant #:nodoc:
       # unstore() the information will be removed and a Response object will be returned indicating the success of the action.
       def unstore(identification, options = {})
         parameters = {
-          billingid: identification,
+          billingid: identification
         }
 
         add_custom_fields(parameters, options)
@@ -331,7 +337,8 @@ module ActiveMerchant #:nodoc:
           gsub(%r((Authorization: Basic )\w+), '\1[FILTERED]').
           gsub(%r((&?cc=)\d*(&?)), '\1[FILTERED]\2').
           gsub(%r((&?password=)[^&]+(&?)), '\1[FILTERED]\2').
-          gsub(%r((&?cvv=)\d*(&?)), '\1[FILTERED]\2')
+          gsub(%r((&?cvv=)\d*(&?)), '\1[FILTERED]\2').
+          gsub(%r((&?account=)\d*(&?)), '\1[FILTERED]\2')
       end
 
       private
@@ -443,7 +450,10 @@ module ActiveMerchant #:nodoc:
         # to be considered successful, transaction status must be either "approved" or "accepted"
         success = SUCCESS_TYPES.include?(data['status'])
         message = message_from(data)
-        Response.new(success, message, data,
+        Response.new(
+          success,
+          message,
+          data,
           test: test?,
           authorization: authorization_from(action, data),
           cvv_result: data['cvv'],
@@ -476,9 +486,14 @@ module ActiveMerchant #:nodoc:
       end
 
       def authorization_from(action, data)
-        authorization = data['transid']
-        authorization = "#{authorization}|#{action}" if authorization && VOIDABLE_ACTIONS.include?(action)
-        authorization
+        case action
+        when 'store'
+          data['billingid']
+        when *VOIDABLE_ACTIONS
+          "#{data['transid']}|#{action}"
+        else
+          data['transid']
+        end
       end
 
       def split_authorization(authorization)

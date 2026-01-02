@@ -10,7 +10,7 @@ class EpayTest < Test::Unit::TestCase
     )
 
     @credit_card = credit_card
-    @options = {three_d_secure: { eci: '7', xid: '123', cavv: '456', version: '2', ds_transaction_id: '798' }}
+    @options = { three_d_secure: { eci: '7', xid: '123', cavv: '456', version: '2', ds_transaction_id: '798' } }
   end
 
   def test_successful_purchase
@@ -26,8 +26,7 @@ class EpayTest < Test::Unit::TestCase
 
     assert response = @gateway.authorize(100, @credit_card)
     assert_failure response
-    assert_equal 'The payment was declined. Try again in a moment or try with another credit card.',
-      response.message
+    assert_equal 'The payment was declined. Try again in a moment or try with another credit card.', response.message
   end
 
   def test_successful_3ds_purchase
@@ -51,8 +50,7 @@ class EpayTest < Test::Unit::TestCase
 
     assert response = @gateway.authorize(100, @credit_card)
     assert_failure response
-    assert_equal 'The payment was declined of unknown reasons. For more information contact the bank. E.g. try with another credit card.<br />Denied - Call your bank for information',
-      response.message
+    assert_equal 'The payment was declined of unknown reasons. For more information contact the bank. E.g. try with another credit card.<br />Denied - Call your bank for information', response.message
   end
 
   def test_failed_response_on_purchase

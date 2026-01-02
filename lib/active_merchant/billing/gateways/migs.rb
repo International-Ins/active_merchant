@@ -1,7 +1,7 @@
 require 'active_merchant/billing/gateways/migs/migs_codes'
 
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class MigsGateway < Gateway
       include MigsCodes
 
@@ -20,7 +20,7 @@ module ActiveMerchant #:nodoc:
       self.supported_countries = %w(AU AE BD BN EG HK ID JO KW LB LK MU MV MY NZ OM PH QA SA SG TT VN)
 
       # The card types supported by the payment gateway
-      self.supported_cardtypes = [:visa, :master, :american_express, :diners_club, :jcb]
+      self.supported_cardtypes = %i[visa master american_express diners_club jcb]
 
       self.money_format = :cents
       self.currencies_without_fractions = %w(IDR)
@@ -70,7 +70,7 @@ module ActiveMerchant #:nodoc:
 
       # MiGS works by merchants being either purchase only or authorize/capture
       # So authorize is the same as purchase when in authorize mode
-      alias_method :authorize, :purchase
+      alias authorize purchase
 
       # ==== Options
       #
@@ -123,7 +123,7 @@ module ActiveMerchant #:nodoc:
         refund(money, authorization, options)
       end
 
-      def verify(credit_card, options={})
+      def verify(credit_card, options = {})
         MultiResponse.run do |r|
           r.process { authorize(100, credit_card, options) }
           r.process(:ignore_result) { void(r.authorization, options) }
@@ -281,7 +281,10 @@ module ActiveMerchant #:nodoc:
         cvv_result_code = response[:CSCResultCode]
         cvv_result_code = 'P' if cvv_result_code == 'Unsupported'
 
-        Response.new(success?(response), response[:Message], response,
+        Response.new(
+          success?(response),
+          response[:Message],
+          response,
           test: test?,
           authorization: response[:TransactionNo],
           fraud_review: fraud_review?(response),

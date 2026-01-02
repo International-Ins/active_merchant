@@ -1,19 +1,20 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class BarclaycardSmartpayGateway < Gateway
+      version 'v40'
+
       self.test_url = 'https://pal-test.barclaycardsmartpay.com/pal/servlet'
       self.live_url = 'https://pal-live.barclaycardsmartpay.com/pal/servlet'
 
-      self.supported_countries = ['AL', 'AD', 'AM', 'AT', 'AZ', 'BY', 'BE', 'BA', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IS', 'IE', 'IT', 'KZ', 'LV', 'LI', 'LT', 'LU', 'MK', 'MT', 'MD', 'MC', 'ME', 'NL', 'NO', 'PL', 'PT', 'RO', 'RU', 'SM', 'RS', 'SK', 'SI', 'ES', 'SE', 'CH', 'TR', 'UA', 'GB', 'VA']
+      self.supported_countries = %w[AL AD AM AT AZ BY BE BA BG HR CY CZ DK EE FI FR DE GR HU IS IE IT KZ LV LI LT LU MK MT MD MC ME NL NO PL PT RO RU SM RS SK SI ES SE CH TR UA GB VA]
       self.default_currency = 'EUR'
-      self.currencies_with_three_decimal_places = %w(BHD KWD OMR RSD TND)
+      self.currencies_with_three_decimal_places = %w(BHD KWD OMR RSD TND IQD JOD LYD)
       self.money_format = :cents
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :diners_club, :jcb, :dankort, :maestro]
+      self.supported_cardtypes = %i[visa master american_express discover diners_club jcb dankort maestro]
+      self.currencies_without_fractions = %w(CVE DJF GNF IDR JPY KMF KRW PYG RWF UGX VND VUV XAF XOF XPF)
 
       self.homepage_url = 'https://www.barclaycardsmartpay.com/'
       self.display_name = 'Barclaycard Smartpay'
-
-      API_VERSION = 'v40'
 
       def initialize(options = {})
         requires!(options, :company, :merchant, :password)
@@ -71,21 +72,23 @@ module ActiveMerchant #:nodoc:
         post[:shopperName] = options[:shopper_name] if options[:shopper_name]
 
         if options[:third_party_payout]
-          post[:recurring] = options[:recurring_contract] || {contract: 'PAYOUT'}
+          post[:recurring] = options[:recurring_contract] || { contract: 'PAYOUT' }
           MultiResponse.run do |r|
             r.process {
               commit(
                 'storeDetailAndSubmitThirdParty',
                 post,
                 @options[:store_payout_account],
-                @options[:store_payout_password])
+                @options[:store_payout_password]
+              )
             }
             r.process {
               commit(
                 'confirmThirdParty',
                 modification_request(r.authorization, @options),
                 @options[:review_payout_account],
-                @options[:review_payout_password])
+                @options[:review_payout_password]
+              )
             }
           end
         else
@@ -108,7 +111,7 @@ module ActiveMerchant #:nodoc:
       def store(creditcard, options = {})
         post = store_request(options)
         post[:card] = credit_card_hash(creditcard)
-        post[:recurring] = {contract: 'RECURRING'}
+        post[:recurring] = { contract: 'RECURRING' }
 
         commit('store', post)
       end
@@ -254,13 +257,13 @@ module ActiveMerchant #:nodoc:
       def build_url(action)
         case action
         when 'store'
-          "#{test? ? self.test_url : self.live_url}/Recurring/#{API_VERSION}/storeToken"
+          "#{test? ? self.test_url : self.live_url}/Recurring/#{fetch_version}/storeToken"
         when 'finalize3ds'
-          "#{test? ? self.test_url : self.live_url}/Payment/#{API_VERSION}/authorise3d"
+          "#{test? ? self.test_url : self.live_url}/Payment/#{fetch_version}/authorise3d"
         when 'storeDetailAndSubmitThirdParty', 'confirmThirdParty'
-          "#{test? ? self.test_url : self.live_url}/Payout/#{API_VERSION}/#{action}"
+          "#{test? ? self.test_url : self.live_url}/Payout/#{fetch_version}/#{action}"
         else
-          "#{test? ? self.test_url : self.live_url}/Payment/#{API_VERSION}/#{action}"
+          "#{test? ? self.test_url : self.live_url}/Payment/#{fetch_version}/#{action}"
         end
       end
 

@@ -1,8 +1,8 @@
 require File.join(File.dirname(__FILE__), '..', 'check.rb')
 
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
-    class SmartPs < Gateway #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
+    class SmartPs < Gateway # :nodoc:
       ##
       # This is the base gateway for processors who use the smartPS processing system
 
@@ -123,7 +123,7 @@ module ActiveMerchant #:nodoc:
         commit(nil, nil, post)
       end
 
-      alias_method :unstore, :delete
+      alias unstore delete
 
       private
 
@@ -133,9 +133,9 @@ module ActiveMerchant #:nodoc:
         post[:ipaddress] = options[:ip] if options.has_key? :ip
       end
 
-      def add_address(post, address, prefix='')
+      def add_address(post, address, prefix = '')
         prefix += '_' unless prefix.blank?
-        unless address.blank? or address.values.blank?
+        unless address.blank? || address.values.blank?
           post[prefix + 'address1']    = address[:address1].to_s
           post[prefix + 'address2']    = address[:address2].to_s unless address[:address2].blank?
           post[prefix + 'company']    = address[:company].to_s
@@ -163,7 +163,7 @@ module ActiveMerchant #:nodoc:
         post[:orderid] = options[:order_id].to_s.gsub(/[^\w.]/, '')
       end
 
-      def add_payment_source(params, source, options={})
+      def add_payment_source(params, source, options = {})
         case determine_funding_source(source)
         when :vault       then add_customer_vault_id(params, source)
         when :credit_card then add_creditcard(params, source, options)
@@ -226,7 +226,10 @@ module ActiveMerchant #:nodoc:
       def commit(action, money, parameters)
         parameters[:amount] = localized_amount(money, parameters[:currency] || default_currency) if money
         response = parse(ssl_post(self.live_url, post_data(action, parameters)))
-        Response.new(response['response'] == '1', message_from(response), response,
+        Response.new(
+          response['response'] == '1',
+          message_from(response),
+          response,
           authorization: (response['transactionid'] || response['customer_vault_id']),
           test: test?,
           cvv_result: response['cvvresponse'],
@@ -258,8 +261,7 @@ module ActiveMerchant #:nodoc:
         post[:password]   = @options[:password]
         post[:type]       = action if action
 
-        request = post.merge(parameters).map { |key, value| "#{key}=#{CGI.escape(value.to_s)}" }.join('&')
-        request
+        post.merge(parameters).map { |key, value| "#{key}=#{CGI.escape(value.to_s)}" }.join('&')
       end
 
       def determine_funding_source(source)

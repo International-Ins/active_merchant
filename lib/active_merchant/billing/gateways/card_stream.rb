@@ -1,5 +1,5 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class CardStreamGateway < Gateway
       THREEDSECURE_REQUIRED_DEPRECATION_MESSAGE = 'Specifying the :threeDSRequired initialization option is deprecated. Please use the `:threeds_required => true` *transaction* option instead.'
 
@@ -7,8 +7,8 @@ module ActiveMerchant #:nodoc:
       self.money_format = :cents
       self.default_currency = 'GBP'
       self.currencies_without_fractions = %w(CVE ISK JPY UGX)
-      self.supported_countries = ['GB', 'US', 'CH', 'SE', 'SG', 'NO', 'JP', 'IS', 'HK', 'NL', 'CZ', 'CA', 'AU']
-      self.supported_cardtypes = [:visa, :master, :american_express, :diners_club, :discover, :jcb, :maestro]
+      self.supported_countries = %w[GB US CH SE SG NO JP IS HK NL CZ CA AU]
+      self.supported_cardtypes = %i[visa master american_express diners_club discover jcb maestro]
       self.homepage_url = 'http://www.cardstream.com/'
       self.display_name = 'CardStream'
 
@@ -150,23 +150,13 @@ module ActiveMerchant #:nodoc:
 
       def authorize(money, credit_card_or_reference, options = {})
         post = {}
-        add_pair(post, :captureDelay, -1)
-        add_amount(post, money, options)
-        add_invoice(post, credit_card_or_reference, money, options)
-        add_credit_card_or_reference(post, credit_card_or_reference)
-        add_customer_data(post, options)
-        add_remote_address(post, options)
+        add_auth_purchase(post, -1, money, credit_card_or_reference, options)
         commit('SALE', post)
       end
 
       def purchase(money, credit_card_or_reference, options = {})
         post = {}
-        add_pair(post, :captureDelay, 0)
-        add_amount(post, money, options)
-        add_invoice(post, credit_card_or_reference, money, options)
-        add_credit_card_or_reference(post, credit_card_or_reference)
-        add_customer_data(post, options)
-        add_remote_address(post, options)
+        add_auth_purchase(post, 0, money, credit_card_or_reference, options)
         commit('SALE', post)
       end
 
@@ -184,6 +174,7 @@ module ActiveMerchant #:nodoc:
         add_pair(post, :xref, authorization)
         add_amount(post, money, options)
         add_remote_address(post, options)
+        add_country_code(post, options)
         response = commit('REFUND_SALE', post)
 
         return response if response.success?
@@ -203,7 +194,7 @@ module ActiveMerchant #:nodoc:
         commit('CANCEL', post)
       end
 
-      def verify(creditcard, options={})
+      def verify(creditcard, options = {})
         MultiResponse.run(:use_first_response) do |r|
           r.process { authorize(100, creditcard, options) }
           r.process(:ignore_result) { void(r.authorization, options) }
@@ -222,6 +213,17 @@ module ActiveMerchant #:nodoc:
       end
 
       private
+
+      def add_auth_purchase(post, pair_value, money, credit_card_or_reference, options)
+        add_pair(post, :captureDelay, pair_value)
+        add_amount(post, money, options)
+        add_invoice(post, credit_card_or_reference, money, options)
+        add_credit_card_or_reference(post, credit_card_or_reference)
+        add_customer_data(post, options)
+        add_remote_address(post, options)
+        add_country_code(post, options)
+        add_threeds_fields(post, options)
+      end
 
       def add_amount(post, money, options)
         currency = options[:currency] || currency(money)
@@ -246,12 +248,10 @@ module ActiveMerchant #:nodoc:
         add_pair(post, :orderRef, options[:description] || options[:order_id], required: true)
         add_pair(post, :statementNarrative1, options[:merchant_name]) if options[:merchant_name]
         add_pair(post, :statementNarrative2, options[:dynamic_descriptor]) if options[:dynamic_descriptor]
-        if credit_card_or_reference.respond_to?(:number)
-          if ['american_express', 'diners_club'].include?(card_brand(credit_card_or_reference).to_s)
-            add_pair(post, :item1Quantity, 1)
-            add_pair(post, :item1Description, (options[:description] || options[:order_id]).slice(0, 15))
-            add_pair(post, :item1GrossValue, localized_amount(money, options[:currency] || currency(money)))
-          end
+        if credit_card_or_reference.respond_to?(:number) && %w[american_express diners_club].include?(card_brand(credit_card_or_reference).to_s)
+          add_pair(post, :item1Quantity, 1)
+          add_pair(post, :item1Description, (options[:description] || options[:order_id]).slice(0, 15))
+          add_pair(post, :item1GrossValue, localized_amount(money, options[:currency] || currency(money)))
         end
 
         add_pair(post, :type, options[:type] || '1')
@@ -282,8 +282,26 @@ module ActiveMerchant #:nodoc:
         add_pair(post, :threeDSRequired, options[:threeds_required] || @threeds_required ? 'Y' : 'N')
       end
 
-      def add_remote_address(post, options={})
+      def add_threeds_fields(post, options)
+        return unless three_d_secure = options[:three_d_secure]
+
+        add_pair(post, :threeDSEnrolled, formatted_enrollment(three_d_secure[:enrolled]))
+        if three_d_secure[:enrolled] == 'true'
+          add_pair(post, :threeDSAuthenticated, three_d_secure[:authentication_response_status])
+          if three_d_secure[:authentication_response_status] == 'Y'
+            post[:threeDSECI]  = three_d_secure[:eci]
+            post[:threeDSCAVV] = three_d_secure[:cavv]
+            post[:threeDSXID] = three_d_secure[:xid] || three_d_secure[:ds_transaction_id]
+          end
+        end
+      end
+
+      def add_remote_address(post, options = {})
         add_pair(post, :remoteAddress, options[:ip] || '1.1.1.1')
+      end
+
+      def add_country_code(post, options)
+        post[:countryCode] = options[:country_code] || self.supported_countries[0]
       end
 
       def normalize_line_endings(str)
@@ -309,15 +327,15 @@ module ActiveMerchant #:nodoc:
       end
 
       def commit(action, parameters)
-        parameters.update(countryCode: self.supported_countries[0]) unless ['CAPTURE', 'CANCEL'].include?(action)
         parameters.update(
           merchantID: @options[:login],
-          action: action
+          action:
         )
         # adds a signature to the post hash/array
         add_hmac(parameters)
 
-        response = parse(ssl_post(self.live_url, post_data(action, parameters)))
+        api_url = @options[:custom_api_url] || self.live_url
+        response = parse(ssl_post(api_url, post_data(action, parameters)))
 
         Response.new(
           response[:responseCode] == '0',
@@ -345,9 +363,9 @@ module ActiveMerchant #:nodoc:
                end
 
         AVSResult.new({
-          code: code,
-          postal_match: postal_match,
-          street_match: street_match
+          code:,
+          postal_match:,
+          street_match:
         })
       end
 
@@ -361,6 +379,14 @@ module ActiveMerchant #:nodoc:
 
       def add_pair(post, key, value, options = {})
         post[key] = value if !value.blank? || options[:required]
+      end
+
+      def formatted_enrollment(val)
+        case val
+        when 'Y', 'N', 'U' then val
+        when true, 'true' then 'Y'
+        when false, 'false' then 'N'
+        end
       end
     end
   end

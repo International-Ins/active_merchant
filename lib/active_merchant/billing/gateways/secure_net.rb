@@ -1,7 +1,7 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class SecureNetGateway < Gateway
-      API_VERSION = '4.0'
+      version '4.0'
 
       TRANSACTIONS = {
         auth_only:            '0000',
@@ -18,7 +18,7 @@ module ActiveMerchant #:nodoc:
       NIL_ATTRIBUTE = { 'i:nil' => 'true' }
 
       self.supported_countries = ['US']
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover]
+      self.supported_cardtypes = %i[visa master american_express discover]
       self.homepage_url = 'http://www.securenet.com/'
       self.display_name = 'SecureNet'
 
@@ -79,7 +79,10 @@ module ActiveMerchant #:nodoc:
         data = ssl_post(url, xml, 'Content-Type' => 'text/xml')
         response = parse(data)
 
-        Response.new(success?(response), message_from(response), response,
+        Response.new(
+          success?(response),
+          message_from(response),
+          response,
           test: test?,
           authorization: build_authorization(response),
           avs_result: { code: response[:avs_result_code] },

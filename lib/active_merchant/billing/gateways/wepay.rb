@@ -1,11 +1,13 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class WepayGateway < Gateway
-      self.test_url = 'https://stage.wepayapi.com/v2'
-      self.live_url = 'https://wepayapi.com/v2'
+      version 'v2'
 
-      self.supported_countries = ['US', 'CA']
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover]
+      self.test_url = "https://stage.wepayapi.com/#{fetch_version}"
+      self.live_url = "https://wepayapi.com/#{fetch_version}"
+
+      self.supported_countries = %w[US CA]
+      self.supported_cardtypes = %i[visa master american_express discover]
       self.homepage_url = 'https://www.wepay.com/'
       self.default_currency = 'USD'
       self.display_name = 'WePay'
@@ -168,14 +170,15 @@ module ActiveMerchant #:nodoc:
         JSON.parse(response)
       end
 
-      def commit(action, params, options={})
+      def commit(action, params, options = {})
         begin
           response = parse(
             ssl_post(
               ((test? ? test_url : live_url) + action),
               params.to_json,
               headers(options)
-            ))
+            )
+          )
         rescue ResponseError => e
           response = parse(e.response.body)
         end

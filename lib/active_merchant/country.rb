@@ -1,6 +1,6 @@
 # encoding: utf-8
 
-module ActiveMerchant #:nodoc:
+module ActiveMerchant # :nodoc:
   class InvalidCountryCodeError < StandardError
   end
 
@@ -9,6 +9,7 @@ module ActiveMerchant #:nodoc:
 
   class CountryCode
     attr_reader :value, :format
+
     def initialize(value)
       @value = value.to_s.upcase
       detect_format
@@ -39,7 +40,7 @@ module ActiveMerchant #:nodoc:
 
     def initialize(options = {})
       @name = options.delete(:name)
-      @codes = options.collect { |k, v| CountryCode.new(v) }
+      @codes = options.collect { |_k, v| CountryCode.new(v) }
     end
 
     def code(format)
@@ -184,6 +185,7 @@ module ActiveMerchant #:nodoc:
       { alpha2: 'KP', name: 'Korea, Democratic People\'s Republic of', alpha3: 'PRK', numeric: '408' },
       { alpha2: 'KR', name: 'Korea, Republic of', alpha3: 'KOR', numeric: '410' },
       { alpha2: 'XK', name: 'Kosovo', alpha3: 'XKX', numeric: '900' },
+      { alpha2: 'QZ', name: 'Kosovo', alpha3: 'XKX', numeric: '900' },
       { alpha2: 'KW', name: 'Kuwait', alpha3: 'KWT', numeric: '414' },
       { alpha2: 'KG', name: 'Kyrgyzstan', alpha3: 'KGZ', numeric: '417' },
       { alpha2: 'LA', name: 'Lao People\'s Democratic Republic', alpha3: 'LAO', numeric: '418' },
@@ -308,6 +310,7 @@ module ActiveMerchant #:nodoc:
       { alpha2: 'VU', name: 'Vanuatu', alpha3: 'VUT', numeric: '548' },
       { alpha2: 'VE', name: 'Venezuela', alpha3: 'VEN', numeric: '862' },
       { alpha2: 'VN', name: 'Viet Nam', alpha3: 'VNM', numeric: '704' },
+      { alpha2: 'VN', name: 'Vietnam', alpha3: 'VNM', numeric: '704' },
       { alpha2: 'VG', name: 'Virgin Islands, British', alpha3: 'VGB', numeric: '092' },
       { alpha2: 'VI', name: 'Virgin Islands, U.S.', alpha3: 'VIR', numeric: '850' },
       { alpha2: 'WF', name: 'Wallis and Futuna', alpha3: 'WLF', numeric: '876' },

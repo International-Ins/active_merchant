@@ -15,14 +15,14 @@ class RemoteTransFirstTransactionExpressTest < Test::Unit::TestCase
       city: 'Broomfield',
       state: 'CO',
       zip: '85284',
-      phone: '(333) 444-5555',
+      phone: '(333) 444-5555'
     })
 
     @options = {
       order_id: generate_unique_id,
       company_name: 'Acme',
       title: 'QA Manager',
-      billing_address: billing_address,
+      billing_address:,
       shipping_address: billing_address,
       email: 'example@example.com',
       description: 'Store Purchase'
@@ -58,12 +58,12 @@ class RemoteTransFirstTransactionExpressTest < Test::Unit::TestCase
     options = @options.dup
     options[:shipping_address] = {
       address1: '450 Main',
-      zip: '85284',
+      zip: '85284'
     }
 
     options[:billing_address] = {
       address1: '450 Main',
-      zip: '85284',
+      zip: '85284'
     }
 
     response = @gateway.purchase(@amount, @credit_card, options)
@@ -81,13 +81,13 @@ class RemoteTransFirstTransactionExpressTest < Test::Unit::TestCase
     options[:shipping_address] = {
       address1: '450 Main',
       address2: '',
-      zip: '85284',
+      zip: '85284'
     }
 
     options[:billing_address] = {
       address1: '450 Main',
       address2: '',
-      zip: '85284',
+      zip: '85284'
     }
 
     response = @gateway.purchase(@amount, @credit_card, options)
@@ -392,5 +392,13 @@ class RemoteTransFirstTransactionExpressTest < Test::Unit::TestCase
     assert_scrubbed(@credit_card.verification_value.to_s, clean_transcript)
     assert_scrubbed(@gateway.options[:gateway_id], clean_transcript)
     assert_scrubbed(@gateway.options[:reg_key], clean_transcript)
+  end
+
+  def test_transcript_scrubbing_account_number
+    transcript = capture_transcript(@gateway) do
+      @gateway.purchase(@amount, @check, @options)
+    end
+    clean_transcript = @gateway.scrub(transcript)
+    assert_scrubbed(@check.account_number, clean_transcript)
   end
 end

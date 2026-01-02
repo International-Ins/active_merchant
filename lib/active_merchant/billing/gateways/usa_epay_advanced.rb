@@ -1,8 +1,8 @@
 require 'securerandom'
 require 'digest'
 
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     # ==== USA ePay Advanced SOAP Interface
     #
     # This class encapsulates USA ePay's Advanced SOAP Interface. The Advanced Soap Interface allows
@@ -64,16 +64,16 @@ module ActiveMerchant #:nodoc:
     class UsaEpayAdvancedGateway < Gateway
       API_VERSION = '1.4'
 
-      TEST_URL_BASE = 'https://sandbox.usaepay.com/soap/gate/' #:nodoc:
-      LIVE_URL_BASE = 'https://www.usaepay.com/soap/gate/' #:nodoc:
+      TEST_URL_BASE = 'https://sandbox.usaepay.com/soap/gate/' # :nodoc:
+      LIVE_URL_BASE = 'https://www.usaepay.com/soap/gate/' # :nodoc:
 
       self.test_url = TEST_URL_BASE
       self.live_url = LIVE_URL_BASE
 
-      FAILURE_MESSAGE = 'Default Failure' #:nodoc:
+      FAILURE_MESSAGE = 'Default Failure' # :nodoc:
 
       self.supported_countries = ['US']
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :diners_club, :jcb]
+      self.supported_cardtypes = %i[visa master american_express discover diners_club jcb]
       self.homepage_url = 'http://www.usaepay.com/'
       self.display_name = 'USA ePay Advanced SOAP Interface'
 
@@ -82,7 +82,7 @@ module ActiveMerchant #:nodoc:
         notes: [:string, 'Notes'],
         data: [:string, 'CustomData'],
         url: [:string, 'URL']
-      } #:nodoc:
+      } # :nodoc:
 
       CUSTOMER_RECURRING_BILLING_OPTIONS = {
         enabled: [:boolean, 'Enabled'],
@@ -95,19 +95,19 @@ module ActiveMerchant #:nodoc:
         source: [:string, 'Source'],
         send_receipt: [:boolean, 'SendReceipt'],
         receipt_note: [:string, 'ReceiptNote']
-      } #:nodoc:
+      } # :nodoc:
 
       CUSTOMER_POINT_OF_SALE_OPTIONS = {
         price_tier: [:string, 'PriceTier'],
         tax_class: [:string, 'TaxClass'],
         lookup_code: [:string, 'LookupCode']
-      } #:nodoc:
+      } # :nodoc:
 
       CUSTOMER_OPTIONS = [
         CUSTOMER_PROFILE_OPTIONS,
         CUSTOMER_RECURRING_BILLING_OPTIONS,
         CUSTOMER_POINT_OF_SALE_OPTIONS
-      ].inject(:merge) #:nodoc:
+      ].inject(:merge) # :nodoc:
 
       COMMON_ADDRESS_OPTIONS = {
         first_name: [:string, 'FirstName'],
@@ -120,15 +120,15 @@ module ActiveMerchant #:nodoc:
         email: [:string, 'Email'],
         fax: [:string, 'Fax'],
         company: [:string, 'Company']
-      } #:nodoc:
+      } # :nodoc:
 
       ADDRESS_OPTIONS = [
         COMMON_ADDRESS_OPTIONS,
         {
           address1: [:string, 'Street'],
-          address2: [:string, 'Street2'],
+          address2: [:string, 'Street2']
         }
-      ].inject(:merge) #:nodoc
+      ].inject(:merge) # :nodoc
 
       CUSTOMER_UPDATE_DATA_FIELDS = [
         CUSTOMER_PROFILE_OPTIONS,
@@ -136,7 +136,7 @@ module ActiveMerchant #:nodoc:
         COMMON_ADDRESS_OPTIONS,
         {
           address1: [:string, 'Address'],
-          address2: [:string, 'Address2'],
+          address2: [:string, 'Address2']
         },
         {
           card_number: [:string, 'CardNumber'],
@@ -144,9 +144,9 @@ module ActiveMerchant #:nodoc:
           account: [:string, 'Account'],
           routing: [:string, 'Routing'],
           check_format: [:string, 'CheckFormat'],
-          record_type: [:string, 'RecordType'],
+          record_type: [:string, 'RecordType']
         }
-      ].inject(:merge) #:nodoc
+      ].inject(:merge) # :nodoc
 
       CUSTOMER_TRANSACTION_REQUEST_OPTIONS = {
         command: [:string, 'Command'],
@@ -161,7 +161,7 @@ module ActiveMerchant #:nodoc:
         recurring: [:boolean, 'isRecurring'],
         verification_value: [:string, 'CardCode'],
         software: [:string, 'Software']
-      } #:nodoc:
+      } # :nodoc:
 
       TRANSACTION_REQUEST_OBJECT_OPTIONS = {
         command: [:string, 'Command'],
@@ -174,7 +174,7 @@ module ActiveMerchant #:nodoc:
         customer_receipt: [:boolean, 'CustReceipt'],
         customer_template: [:boolean, 'CustReceiptName'],
         software: [:string, 'Software']
-      } #:nodoc:
+      } # :nodoc:
 
       TRANSACTION_DETAIL_OPTIONS = {
         invoice: [:string, 'Invoice'],
@@ -187,8 +187,8 @@ module ActiveMerchant #:nodoc:
         comments: [:string, 'Comments'],
         allow_partial_auth: [:boolean, 'AllowPartialAuth'],
         currency: [:string, 'Currency'],
-        non_tax: [:boolean, 'NonTax'],
-      } #:nodoc:
+        non_tax: [:boolean, 'NonTax']
+      } # :nodoc:
 
       TRANSACTION_DETAIL_MONEY_OPTIONS = {
         amount: [:double, 'Amount'],
@@ -198,7 +198,7 @@ module ActiveMerchant #:nodoc:
         shipping: [:double, 'Shipping'],
         discount: [:double, 'Discount'],
         subtotal: [:double, 'Subtotal']
-      } #:nodoc:
+      } # :nodoc:
 
       CREDIT_CARD_DATA_OPTIONS = {
         magnetic_stripe: [:string, 'MagStripe'],
@@ -211,7 +211,7 @@ module ActiveMerchant #:nodoc:
         eci: [:integer, 'ECI'],
         internal_card_authorization: [:boolean, 'InternalCardAuth'],
         pares: [:string, 'Pares']
-      } #:nodoc:
+      } # :nodoc:
 
       CHECK_DATA_OPTIONS = {
         drivers_license: [:string, 'DriversLicense'],
@@ -221,13 +221,13 @@ module ActiveMerchant #:nodoc:
         epc_code: [:string, 'EpcCode'],
         front_image: [:string, 'FrontImage'],
         back_image: [:string, 'BackImage']
-      } #:nodoc:
+      } # :nodoc:
 
       RECURRING_BILLING_OPTIONS = {
         schedule: [:string, 'Schedule'],
         number_left: [:integer, 'NumLeft'],
         enabled: [:boolean, 'Enabled']
-      } #:nodoc:
+      } # :nodoc:
 
       AVS_RESULTS = {
         'Y' => %w(YYY Y YYA YYD),
@@ -248,13 +248,13 @@ module ActiveMerchant #:nodoc:
       }.inject({}) do |map, (type, codes)|
         codes.each { |code| map[code] = type }
         map
-      end #:nodoc:
+      end # :nodoc:
 
       AVS_CUSTOM_MESSAGES = {
         'XXW' => 'Card number not on file.',
         'XXU' => 'Address information not verified for domestic transaction.',
         'XXE' => 'Address verification not allowed for card type.'
-      } #:nodoc:
+      } # :nodoc:
 
       # Create a new gateway.
       #
@@ -289,7 +289,7 @@ module ActiveMerchant #:nodoc:
       #
       # Note: See run_transaction for additional options.
       #
-      def purchase(money, creditcard, options={})
+      def purchase(money, creditcard, options = {})
         run_sale(options.merge!(amount: money, payment_method: creditcard))
       end
 
@@ -297,7 +297,7 @@ module ActiveMerchant #:nodoc:
       #
       # Note: See run_transaction for additional options.
       #
-      def authorize(money, creditcard, options={})
+      def authorize(money, creditcard, options = {})
         run_auth_only(options.merge!(amount: money, payment_method: creditcard))
       end
 
@@ -305,7 +305,7 @@ module ActiveMerchant #:nodoc:
       #
       # Note: See run_transaction for additional options.
       #
-      def capture(money, identification, options={})
+      def capture(money, identification, options = {})
         capture_transaction(options.merge!(amount: money, reference_number: identification))
       end
 
@@ -313,7 +313,7 @@ module ActiveMerchant #:nodoc:
       #
       # Note: See run_transaction for additional options.
       #
-      def void(identification, options={})
+      def void(identification, options = {})
         void_transaction(options.merge!(reference_number: identification))
       end
 
@@ -321,11 +321,11 @@ module ActiveMerchant #:nodoc:
       #
       # Note: See run_transaction for additional options.
       #
-      def refund(money, identification, options={})
+      def refund(money, identification, options = {})
         refund_transaction(options.merge!(amount: money, reference_number: identification))
       end
 
-      def credit(money, identification, options={})
+      def credit(money, identification, options = {})
         ActiveMerchant.deprecated CREDIT_DEPRECATION_MESSAGE
         refund(money, identification, options)
       end
@@ -368,7 +368,7 @@ module ActiveMerchant #:nodoc:
       # ==== Response
       # * <tt>#message</tt> -- customer number assigned by gateway
       #
-      def add_customer(options={})
+      def add_customer(options = {})
         request = build_request(__method__, options)
         commit(__method__, request)
       end
@@ -381,7 +381,7 @@ module ActiveMerchant #:nodoc:
       # ==== Options
       #  * Same as add_customer
       #
-      def update_customer(options={})
+      def update_customer(options = {})
         requires! options, :customer_number
 
         request = build_request(__method__, options)
@@ -429,7 +429,7 @@ module ActiveMerchant #:nodoc:
       # ==== Response
       # * <tt>#message</tt> -- boolean; Returns true if successful. Exception thrown all failures.
       #
-      def quick_update_customer(options={})
+      def quick_update_customer(options = {})
         requires! options, :customer_number
         requires! options, :update_data
 
@@ -444,7 +444,7 @@ module ActiveMerchant #:nodoc:
       # ==== Required
       # * <tt>:customer_number</tt>
       #
-      def enable_customer(options={})
+      def enable_customer(options = {})
         requires! options, :customer_number
 
         request = build_request(__method__, options)
@@ -456,7 +456,7 @@ module ActiveMerchant #:nodoc:
       # ==== Required
       # * <tt>:customer_number</tt>
       #
-      def disable_customer(options={})
+      def disable_customer(options = {})
         requires! options, :customer_number
 
         request = build_request(__method__, options)
@@ -479,7 +479,7 @@ module ActiveMerchant #:nodoc:
       # ==== Response
       # * <tt>#message</tt> -- method_id of new customer payment method
       #
-      def add_customer_payment_method(options={})
+      def add_customer_payment_method(options = {})
         requires! options, :customer_number
 
         request = build_request(__method__, options)
@@ -494,7 +494,7 @@ module ActiveMerchant #:nodoc:
       # ==== Response
       # * <tt>#message</tt> -- either a single hash or an array of hashes of payment methods
       #
-      def get_customer_payment_methods(options={})
+      def get_customer_payment_methods(options = {})
         requires! options, :customer_number
 
         request = build_request(__method__, options)
@@ -510,7 +510,7 @@ module ActiveMerchant #:nodoc:
       # ==== Response
       # * <tt>#message</tt> -- hash of payment method
       #
-      def get_customer_payment_method(options={})
+      def get_customer_payment_method(options = {})
         requires! options, :customer_number, :method_id
 
         request = build_request(__method__, options)
@@ -531,7 +531,7 @@ module ActiveMerchant #:nodoc:
       # ==== Response
       # * <tt>#message</tt> -- hash of payment method
       #
-      def update_customer_payment_method(options={})
+      def update_customer_payment_method(options = {})
         requires! options, :method_id
 
         request = build_request(__method__, options)
@@ -544,7 +544,7 @@ module ActiveMerchant #:nodoc:
       # * <tt>:customer_number</tt>
       # * <tt>:method_id</tt>
       #
-      def delete_customer_payment_method(options={})
+      def delete_customer_payment_method(options = {})
         requires! options, :customer_number, :method_id
 
         request = build_request(__method__, options)
@@ -556,7 +556,7 @@ module ActiveMerchant #:nodoc:
       # ==== Required
       # * <tt>:customer_number</tt>
       #
-      def delete_customer(options={})
+      def delete_customer(options = {})
         requires! options, :customer_number
 
         request = build_request(__method__, options)
@@ -607,7 +607,7 @@ module ActiveMerchant #:nodoc:
       # ==== Response
       # * <tt>#message</tt> -- transaction response hash
       #
-      def run_customer_transaction(options={})
+      def run_customer_transaction(options = {})
         requires! options, :customer_number, :command, :amount
 
         request = build_request(__method__, options)
@@ -671,15 +671,15 @@ module ActiveMerchant #:nodoc:
       # ==== Response
       # * <tt>#message</tt> -- transaction response hash
       #
-      def run_transaction(options={})
+      def run_transaction(options = {})
         request = build_request(__method__, options)
         commit(__method__, request)
       end
 
-      TRANSACTION_METHODS = [
-        :run_sale, :run_auth_only, :run_credit,
-        :run_check_sale, :run_check_credit
-      ] #:nodoc:
+      TRANSACTION_METHODS = %i[
+        run_sale run_auth_only run_credit
+        run_check_sale run_check_credit
+      ] # :nodoc:
 
       TRANSACTION_METHODS.each do |method|
         define_method method do |options|
@@ -699,7 +699,7 @@ module ActiveMerchant #:nodoc:
       # ==== Response
       # * <tt>#message</tt> -- transaction response hash
       #
-      def post_auth(options={})
+      def post_auth(options = {})
         requires! options, :authorization_code
 
         request = build_request(__method__, options)
@@ -721,7 +721,7 @@ module ActiveMerchant #:nodoc:
       # ==== Response
       # * <tt>#message</tt> -- transaction response hash
       #
-      def capture_transaction(options={})
+      def capture_transaction(options = {})
         requires! options, :reference_number
 
         request = build_request(__method__, options)
@@ -738,7 +738,7 @@ module ActiveMerchant #:nodoc:
       # ==== Response
       # * <tt>#message</tt> -- transaction response hash
       #
-      def void_transaction(options={})
+      def void_transaction(options = {})
         requires! options, :reference_number
 
         request = build_request(__method__, options)
@@ -757,7 +757,7 @@ module ActiveMerchant #:nodoc:
       # ==== Response
       # * <tt>#message</tt> -- transaction response hash
       #
-      def refund_transaction(options={})
+      def refund_transaction(options = {})
         requires! options, :reference_number, :amount
 
         request = build_request(__method__, options)
@@ -777,7 +777,7 @@ module ActiveMerchant #:nodoc:
       # ==== Response
       # * <tt>#message</tt> -- transaction response hash
       #
-      def override_transaction(options={})
+      def override_transaction(options = {})
         requires! options, :reference_number
 
         request = build_request(__method__, options)
@@ -820,7 +820,7 @@ module ActiveMerchant #:nodoc:
       # ==== Response
       # * <tt>#message</tt> -- transaction response hash
       #
-      def run_quick_sale(options={})
+      def run_quick_sale(options = {})
         requires! options, :reference_number, :amount
 
         request = build_request(__method__, options)
@@ -858,7 +858,7 @@ module ActiveMerchant #:nodoc:
       # ==== Response
       # * <tt>#message</tt> -- transaction response hash
       #
-      def run_quick_credit(options={})
+      def run_quick_credit(options = {})
         requires! options, :reference_number
 
         request = build_request(__method__, options)
@@ -875,7 +875,7 @@ module ActiveMerchant #:nodoc:
       # ==== Response
       # * <tt>#message</tt> -- transaction hash
       #
-      def get_transaction(options={})
+      def get_transaction(options = {})
         requires! options, :reference_number
 
         request = build_request(__method__, options)
@@ -892,7 +892,7 @@ module ActiveMerchant #:nodoc:
       # * <tt>response.message</tt> -- message of the referenced transaction
       # * <tt>response.authorization</tt> -- same as :reference_number in options
       #
-      def get_transaction_status(options={})
+      def get_transaction_status(options = {})
         requires! options, :reference_number
 
         request = build_request(__method__, options)
@@ -990,7 +990,7 @@ module ActiveMerchant #:nodoc:
       # ==== Response
       # * <tt>#message</tt> -- hash; keys are the field values
       #
-      def get_transaction_custom(options={})
+      def get_transaction_custom(options = {})
         requires! options, :reference_number, :fields
 
         request = build_request(__method__, options)
@@ -1005,7 +1005,7 @@ module ActiveMerchant #:nodoc:
       # ==== Response
       # * <tt>#message</tt> -- check trace hash
       #
-      def get_check_trace(options={})
+      def get_check_trace(options = {})
         requires! options, :reference_number
 
         request = build_request(__method__, options)
@@ -1030,15 +1030,17 @@ module ActiveMerchant #:nodoc:
 
       # Build soap header, etc.
       def build_request(action, options = {})
-        soap = Builder::XmlMarkup.new
-        soap.instruct!(:xml, version: '1.0', encoding: 'utf-8')
-        soap.tag! 'SOAP-ENV:Envelope',
+        envelope_obj = {
           'xmlns:SOAP-ENV' => 'http://schemas.xmlsoap.org/soap/envelope/',
           'xmlns:ns1' => 'urn:usaepay',
           'xmlns:xsd' => 'http://www.w3.org/2001/XMLSchema',
           'xmlns:xsi' => 'http://www.w3.org/2001/XMLSchema-instance',
           'xmlns:SOAP-ENC' => 'http://schemas.xmlsoap.org/soap/encoding/',
-          'SOAP-ENV:encodingStyle' => 'http://schemas.xmlsoap.org/soap/encoding/' do
+          'SOAP-ENV:encodingStyle' => 'http://schemas.xmlsoap.org/soap/encoding/'
+        }
+        soap = Builder::XmlMarkup.new
+        soap.instruct!(:xml, version: '1.0', encoding: 'utf-8')
+        soap.tag! 'SOAP-ENV:Envelope', envelope_obj do
           soap.tag! 'SOAP-ENV:Body' do
             send("build_#{action}", soap, options)
           end
@@ -1078,7 +1080,7 @@ module ActiveMerchant #:nodoc:
         end
       end
 
-      def build_customer(soap, options, type, add_customer_data=false)
+      def build_customer(soap, options, type, add_customer_data = false)
         soap.tag! "ns1:#{type}" do
           build_token soap, options
           build_tag soap, :integer, 'CustNum', options[:customer_number]
@@ -1335,8 +1337,7 @@ module ActiveMerchant #:nodoc:
         case
         when payment_method[:method].kind_of?(ActiveMerchant::Billing::CreditCard)
           build_tag soap, :string, 'CardNumber', payment_method[:method].number
-          build_tag soap, :string, 'CardExpiration',
-            "#{"%02d" % payment_method[:method].month}#{payment_method[:method].year.to_s[-2..-1]}"
+          build_tag soap, :string, 'CardExpiration', "#{'%02d' % payment_method[:method].month}#{payment_method[:method].year.to_s[-2..-1]}"
           if options[:billing_address]
             build_tag soap, :string, 'AvsStreet', options[:billing_address][:address1]
             build_tag soap, :string, 'AvsZip', options[:billing_address][:zip]
@@ -1378,7 +1379,7 @@ module ActiveMerchant #:nodoc:
 
       # Transaction Helpers ===========================================
 
-      def build_transaction_request_object(soap, options, name='Params')
+      def build_transaction_request_object(soap, options, name = 'Params')
         soap.tag! name, 'xsi:type' => 'ns1:TransactionRequestObject' do
           TRANSACTION_REQUEST_OBJECT_OPTIONS.each do |k, v|
             build_tag soap, v[0], v[1], options[k]
@@ -1432,7 +1433,7 @@ module ActiveMerchant #:nodoc:
       def build_card_expiration(options)
         month = options[:payment_method].month
         year  = options[:payment_method].year
-        "#{"%02d" % month}#{year.to_s[-2..-1]}" unless month.nil? || year.nil?
+        "#{'%02d' % month}#{year.to_s[-2..-1]}" unless month.nil? || year.nil?
       end
 
       def build_check_data(soap, options)
@@ -1520,8 +1521,8 @@ module ActiveMerchant #:nodoc:
 
         begin
           soap = ssl_post(url, request, 'Content-Type' => 'text/xml')
-        rescue ActiveMerchant::ResponseError => error
-          soap = error.response.body
+        rescue ActiveMerchant::ResponseError => e
+          soap = e.response.body
         end
 
         build_response(action, soap)
@@ -1537,7 +1538,7 @@ module ActiveMerchant #:nodoc:
           message,
           response_params,
           test: test?,
-          authorization: authorization,
+          authorization:,
           avs_result: avs_from(avs),
           cvv_result: cvv
         )

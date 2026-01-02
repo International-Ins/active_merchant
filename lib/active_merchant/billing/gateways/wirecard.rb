@@ -1,7 +1,7 @@
 require 'base64'
 
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class WirecardGateway < Gateway
       self.test_url = 'https://c3-test.wirecard.com/secure/ssl-gateway'
       self.live_url = 'https://c3.wirecard.com/secure/ssl-gateway'
@@ -26,7 +26,7 @@ module ActiveMerchant #:nodoc:
       # number 5551234 within area code 202 (country code 1).
       VALID_PHONE_FORMAT = /\+\d{1,3}(\(?\d{3}\)?)?\d{3}-\d{4}-\d{3}/
 
-      self.supported_cardtypes = [:visa, :master, :american_express, :diners_club, :jcb]
+      self.supported_cardtypes = %i[visa master american_express diners_club jcb]
       self.supported_countries = %w(AD CY GI IM MT RO CH AT DK GR IT MC SM TR BE EE HU LV NL SK GB BG FI IS LI NO SI VA FR IL LT PL ES CZ DE IE LU PT SE)
       self.homepage_url = 'http://www.wirecard.com'
       self.display_name = 'Wirecard'
@@ -179,9 +179,12 @@ module ActiveMerchant #:nodoc:
         message = response[:Message]
         authorization = response[:GuWID]
 
-        Response.new(success, message, response,
+        Response.new(
+          success,
+          message,
+          response,
           test: test?,
-          authorization: authorization,
+          authorization:,
           avs_result: { code: avs_code(response, options) },
           cvv_result: response[:CVCResponseCode]
         )
@@ -406,7 +409,7 @@ module ActiveMerchant #:nodoc:
         'N' => 'I', # CSC Match
         'U' => 'U', # Data Not Checked
         'Y' => 'D', # All Data Matched
-        'Z' => 'P', # CSC and Postcode Matched
+        'Z' => 'P' # CSC and Postcode Matched
       }
 
       # Amex have different AVS response codes to visa etc

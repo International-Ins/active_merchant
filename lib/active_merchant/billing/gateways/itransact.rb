@@ -1,7 +1,7 @@
 require 'nokogiri'
 
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     # iTransact, Inc. is an authorized reseller of the PaymentClearing gateway. If your merchant service provider uses PaymentClearing.com to process payments, you can use this module.
     #
     #
@@ -38,7 +38,7 @@ module ActiveMerchant #:nodoc:
       self.supported_countries = ['US']
 
       # The card types supported by the payment gateway
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover]
+      self.supported_cardtypes = %i[visa master american_express discover]
 
       # The homepage URL of the gateway
       self.homepage_url = 'http://www.itransact.com/'
@@ -387,11 +387,15 @@ module ActiveMerchant #:nodoc:
         # the Base64 encoded payload signature!
         response = parse(ssl_post(self.live_url, post_data(payload), 'Content-Type' => 'text/xml'))
 
-        Response.new(successful?(response), response[:error_message], response,
+        Response.new(
+          successful?(response),
+          response[:error_message],
+          response,
           test: test?,
           authorization: response[:xid],
           avs_result: { code: response[:avs_response] },
-          cvv_result: response[:cvv_response])
+          cvv_result: response[:cvv_response]
+        )
       end
 
       def post_data(payload)

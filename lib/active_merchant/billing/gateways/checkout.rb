@@ -1,14 +1,14 @@
 require 'rubygems'
 require 'nokogiri'
 
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class CheckoutGateway < Gateway
       self.default_currency = 'USD'
       self.money_format = :cents
 
-      self.supported_countries = ['AD', 'AT', 'BE', 'BG', 'CH', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FO', 'FI', 'FR', 'GB', 'GI', 'GL', 'GR', 'HR', 'HU', 'IE', 'IS', 'IL', 'IT', 'LI', 'LT', 'LU', 'LV', 'MC', 'MT', 'NL', 'NO', 'PL', 'PT', 'RO', 'SE', 'SI', 'SM', 'SK', 'SJ', 'TR', 'VA']
-      self.supported_cardtypes = [:visa, :master, :american_express, :diners_club]
+      self.supported_countries = %w[AD AT BE BG CH CY CZ DE DK EE ES FO FI FR GB GI GL GR HR HU IE IS IL IT LI LT LU LV MC MT NL NO PL PT RO SE SI SM SK SJ TR VA]
+      self.supported_cardtypes = %i[visa master american_express diners_club]
 
       self.homepage_url = 'https://www.checkout.com/'
       self.display_name = 'Checkout.com'
@@ -70,7 +70,7 @@ module ActiveMerchant #:nodoc:
         _, _, orig_action, amount, currency = split_authorization(authorization)
         commit("void_#{orig_action}") do |xml|
           add_credentials(xml, options)
-          add_invoice(xml, amount.to_i, options.merge(currency: currency))
+          add_invoice(xml, amount.to_i, options.merge(currency:))
           add_reference(xml, authorization)
         end
       end
@@ -83,7 +83,7 @@ module ActiveMerchant #:nodoc:
         end
       end
 
-      def verify(credit_card, options={})
+      def verify(credit_card, options = {})
         MultiResponse.run(:use_first_response) do |r|
           r.process { authorize(100, credit_card, options) }
           r.process(:ignore_result) { void(r.authorization, options) }
@@ -150,7 +150,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_reference(xml, authorization)
-        transid, trackid, _, _, _ = split_authorization(authorization)
+        transid, trackid, = split_authorization(authorization)
         xml.transid transid
         add_track_id(xml, trackid)
       end
@@ -159,8 +159,8 @@ module ActiveMerchant #:nodoc:
         xml.trackid(trackid) if trackid
       end
 
-      def commit(action, amount=nil, options={}, &builder)
-        response = parse_xml(ssl_post(live_url, build_xml(action, &builder)))
+      def commit(action, amount = nil, options = {}, &)
+        response = parse_xml(ssl_post(live_url, build_xml(action, &)))
         Response.new(
           (response[:responsecode] == '0'),
           (response[:result] || response[:error_text] || 'Unknown Response'),

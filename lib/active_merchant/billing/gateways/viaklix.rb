@@ -1,5 +1,5 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class ViaklixGateway < Gateway
       class_attribute :test_url, :live_url, :delimiter, :actions
 
@@ -14,7 +14,7 @@ module ActiveMerchant #:nodoc:
 
       APPROVED = '0'
 
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover]
+      self.supported_cardtypes = %i[visa master american_express discover]
       self.supported_countries = ['US']
       self.display_name = 'ViaKLIX'
       self.homepage_url = 'http://viaklix.com'
@@ -136,7 +136,10 @@ module ActiveMerchant #:nodoc:
 
         response = parse(ssl_post(test? ? self.test_url : self.live_url, post_data(parameters)))
 
-        Response.new(response['result'] == APPROVED, message_from(response), response,
+        Response.new(
+          response['result'] == APPROVED,
+          message_from(response),
+          response,
           test: @options[:test] || test?,
           authorization: authorization_from(response),
           avs_result: { code: response['avs_response'] },

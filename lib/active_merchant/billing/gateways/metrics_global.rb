@@ -1,5 +1,5 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     # For more information on the Metrics Global Payment Gateway, visit the {Metrics Global website}[www.metricsglobal.com].
     # Further documentation on AVS and CVV response codes are available under the support section of the Metrics Global
     # control panel.
@@ -31,7 +31,7 @@ module ActiveMerchant #:nodoc:
       AVS_RESULT_CODE, TRANSACTION_ID, CARD_CODE_RESPONSE_CODE  = 5, 6, 38
 
       self.supported_countries = ['US']
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :diners_club, :jcb]
+      self.supported_cardtypes = %i[visa master american_express discover diners_club jcb]
       self.homepage_url = 'http://www.metricsglobal.com'
       self.display_name = 'Metrics Global'
 
@@ -99,7 +99,7 @@ module ActiveMerchant #:nodoc:
       # * <tt>money</tt> -- The amount to be captured as an Integer value in cents.
       # * <tt>authorization</tt> -- The authorization returned from the previous authorize request.
       def capture(money, authorization, options = {})
-        post = {trans_id: authorization}
+        post = { trans_id: authorization }
         add_customer_data(post, options)
         commit('PRIOR_AUTH_CAPTURE', money, post)
       end
@@ -110,7 +110,7 @@ module ActiveMerchant #:nodoc:
       #
       # * <tt>authorization</tt> - The authorization returned from the previous authorize request.
       def void(authorization, options = {})
-        post = {trans_id: authorization}
+        post = { trans_id: authorization }
         add_duplicate_window(post)
         commit('VOID', nil, post)
       end
@@ -136,7 +136,7 @@ module ActiveMerchant #:nodoc:
         requires!(options, :card_number)
 
         post = { trans_id: identification,
-                 card_num: options[:card_number]}
+                 card_num: options[:card_number] }
 
         post[:first_name] = options[:first_name] if options[:first_name]
         post[:last_name] = options[:last_name] if options[:last_name]
@@ -175,7 +175,10 @@ module ActiveMerchant #:nodoc:
         #   (TESTMODE) Successful Sale
         test_mode = test? || message =~ /TESTMODE/
 
-        Response.new(success?(response), message, response,
+        Response.new(
+          success?(response),
+          message,
+          response,
           test: test_mode,
           authorization: response[:transaction_id],
           fraud_review: fraud_review?(response),
@@ -195,7 +198,7 @@ module ActiveMerchant #:nodoc:
       def parse(body)
         fields = split(body)
 
-        results = {
+        {
           response_code: fields[RESPONSE_CODE].to_i,
           response_reason_code: fields[RESPONSE_REASON_CODE],
           response_reason_text: fields[RESPONSE_REASON_TEXT],
@@ -203,7 +206,6 @@ module ActiveMerchant #:nodoc:
           transaction_id: fields[TRANSACTION_ID],
           card_code: fields[CARD_CODE_RESPONSE_CODE]
         }
-        results
       end
 
       def post_data(action, parameters = {})
@@ -219,8 +221,7 @@ module ActiveMerchant #:nodoc:
         post[:encap_char]     = '$'
         post[:solution_ID]    = application_id if application_id
 
-        request = post.merge(parameters).collect { |key, value| "x_#{key}=#{CGI.escape(value.to_s)}" }.join('&')
-        request
+        post.merge(parameters).collect { |key, value| "x_#{key}=#{CGI.escape(value.to_s)}" }.join('&')
       end
 
       def add_invoice(post, options)

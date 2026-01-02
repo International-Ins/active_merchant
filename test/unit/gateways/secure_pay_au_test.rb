@@ -13,7 +13,7 @@ class SecurePayAuTest < Test::Unit::TestCase
     @amount = 100
 
     @options = {
-      order_id: '1',
+      order_id: 'order123',
       billing_address: address,
       description: 'Store Purchase'
     }
@@ -24,7 +24,23 @@ class SecurePayAuTest < Test::Unit::TestCase
   end
 
   def test_supported_card_types
-    assert_equal [:visa, :master, :american_express, :diners_club, :jcb], SecurePayAuGateway.supported_cardtypes
+    assert_equal %i[visa master american_express diners_club jcb], SecurePayAuGateway.supported_cardtypes
+  end
+
+  def test_endpoint
+    stub_comms(@gateway, :ssl_request) do
+      @gateway.purchase(@amount, @credit_card, @options)
+    end.check_request do |_method, _endpoint, data, _headers|
+      assert_match(/<apiVersion>xml-4.2<\/apiVersion>/, data)
+    end.respond_with(successful_purchase_response)
+  end
+
+  def test_periodic_endpoint
+    stub_comms(@gateway, :ssl_request) do
+      @gateway.purchase(@amount, '100', @options)
+    end.check_request do |_method, _endpoint, data, _headers|
+      assert_match(/<apiVersion>spxml-3.0<\/apiVersion>/, data)
+    end.respond_with(successful_purchase_response)
   end
 
   def test_successful_purchase_with_live_data
@@ -52,13 +68,13 @@ class SecurePayAuTest < Test::Unit::TestCase
   def test_localized_currency
     stub_comms do
       @gateway.purchase(100, @credit_card, @options.merge(currency: 'CAD'))
-    end.check_request do |endpoint, data, headers|
+    end.check_request do |_endpoint, data, _headers|
       assert_match %r{<amount>100<\/amount>}, data
     end.respond_with(successful_purchase_response)
 
     stub_comms do
       @gateway.purchase(100, @credit_card, @options.merge(currency: 'JPY'))
-    end.check_request do |endpoint, data, headers|
+    end.check_request do |_endpoint, data, _headers|
       assert_match %r{<amount>1<\/amount>}, data
     end.respond_with(successful_purchase_response)
   end
@@ -77,6 +93,14 @@ class SecurePayAuTest < Test::Unit::TestCase
     @gateway.expects(:commit_periodic)
 
     @gateway.purchase(@amount, '123', @options)
+  end
+
+  def test_periodic_payment_submits_order_id
+    stub_comms(@gateway, :ssl_request) do
+      @gateway.purchase(@amount, '123', @options)
+    end.check_request do |_method, _endpoint, data, _headers|
+      assert_match(/<transactionReference>order123<\/transactionReference>/, data)
+    end.respond_with(successful_purchase_response)
   end
 
   def test_purchase_with_creditcard_calls_commit_with_purchase
@@ -166,7 +190,7 @@ class SecurePayAuTest < Test::Unit::TestCase
   def test_successful_store
     @gateway.expects(:ssl_post).returns(successful_store_response)
 
-    assert response = @gateway.store(@credit_card, {billing_id: 'test3', amount: 123})
+    assert response = @gateway.store(@credit_card, { billing_id: 'test3', amount: 123 })
     assert_instance_of Response, response
     assert_equal 'Successful', response.message
     assert_equal 'test3', response.params['client_id']
@@ -188,6 +212,23 @@ class SecurePayAuTest < Test::Unit::TestCase
     assert_instance_of Response, response
     assert_equal 'Approved', response.message
     assert_equal 'test3', response.params['client_id']
+  end
+
+  def test_request_timeout_default
+    stub_comms(@gateway, :ssl_request) do
+      @gateway.purchase(@amount, @credit_card, @options)
+    end.check_request do |_method, _endpoint, data, _headers|
+      assert_match(/<timeoutValue>60/, data)
+    end.respond_with(successful_purchase_response)
+  end
+
+  def test_override_request_timeout
+    gateway = SecurePayAuGateway.new(login: 'login', password: 'password', request_timeout: 44)
+    stub_comms(gateway, :ssl_request) do
+      gateway.purchase(@amount, @credit_card, @options)
+    end.check_request do |_method, _endpoint, data, _headers|
+      assert_match(/<timeoutValue>44/, data)
+    end.respond_with(successful_purchase_response)
   end
 
   def test_scrub

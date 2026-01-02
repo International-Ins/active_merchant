@@ -1,16 +1,18 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class OptimalPaymentGateway < Gateway
-      self.test_url = 'https://webservices.test.optimalpayments.com/creditcardWS/CreditCardServlet/v1'
-      self.live_url = 'https://webservices.optimalpayments.com/creditcardWS/CreditCardServlet/v1'
+      version 'v1'
+
+      self.test_url = "https://webservices.test.optimalpayments.com/creditcardWS/CreditCardServlet/#{fetch_version}"
+      self.live_url = "https://webservices.optimalpayments.com/creditcardWS/CreditCardServlet/#{fetch_version}"
 
       # The countries the gateway supports merchants from as 2 digit ISO country codes
-      self.supported_countries = ['CA', 'US', 'GB', 'AU', 'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK',
-                                  'EE', 'FI', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT',
-                                  'NL', 'NO', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE', 'CH']
+      self.supported_countries = %w[CA US GB AU AT BE BG HR CY CZ DK
+                                    EE FI DE GR HU IE IT LV LT LU MT
+                                    NL NO PL PT RO SK SI ES SE CH]
 
       # The card types supported by the payment gateway
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :diners_club]
+      self.supported_cardtypes = %i[visa master american_express discover diners_club]
 
       # The homepage URL of the gateway
       self.homepage_url = 'http://www.optimalpayments.com/'
@@ -121,7 +123,10 @@ module ActiveMerchant #:nodoc:
         txnRequest = escape_uri(xml)
         response = parse(ssl_post(test? ? self.test_url : self.live_url, "txnMode=#{action}&txnRequest=#{txnRequest}"))
 
-        Response.new(successful?(response), message_from(response), hash_from_xml(response),
+        Response.new(
+          successful?(response),
+          message_from(response),
+          hash_from_xml(response),
           test: test?,
           authorization: authorization_from(response),
           avs_result: { code: avs_result_from(response) },
@@ -257,7 +262,7 @@ module ActiveMerchant #:nodoc:
       def schema
         { 'xmlns' => 'http://www.optimalpayments.com/creditcard/xmlschema/v1',
           'xmlns:xsi' => 'http://www.w3.org/2001/XMLSchema-instance',
-          'xsi:schemaLocation' => 'http://www.optimalpayments.com/creditcard/xmlschema/v1'}
+          'xsi:schemaLocation' => 'http://www.optimalpayments.com/creditcard/xmlschema/v1' }
       end
 
       def build_merchant_account(xml)
@@ -325,7 +330,7 @@ module ActiveMerchant #:nodoc:
           'master'          => 'MC',
           'american_express' => 'AM',
           'discover'        => 'DI',
-          'diners_club'     => 'DC', }[key]
+          'diners_club'     => 'DC' }[key]
       end
     end
   end

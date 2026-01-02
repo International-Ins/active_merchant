@@ -1,5 +1,5 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class MerchantWareGateway < Gateway
       class_attribute :v4_live_url
 
@@ -7,16 +7,16 @@ module ActiveMerchant #:nodoc:
       self.v4_live_url = 'https://ps1.merchantware.net/Merchantware/ws/RetailTransaction/v4/Credit.asmx'
 
       self.supported_countries = ['US']
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover]
+      self.supported_cardtypes = %i[visa master american_express discover]
       self.homepage_url = 'http://merchantwarehouse.com/merchantware'
       self.display_name = 'MerchantWARE'
 
       ENV_NAMESPACES = { 'xmlns:xsi'  => 'http://www.w3.org/2001/XMLSchema-instance',
                          'xmlns:xsd'  => 'http://www.w3.org/2001/XMLSchema',
-                         'xmlns:env' => 'http://schemas.xmlsoap.org/soap/envelope/'}
+                         'xmlns:env' => 'http://schemas.xmlsoap.org/soap/envelope/' }
       ENV_NAMESPACES_V4 = { 'xmlns:xsi'  => 'http://www.w3.org/2001/XMLSchema-instance',
                             'xmlns:xsd'  => 'http://www.w3.org/2001/XMLSchema',
-                            'xmlns:soap' => 'http://schemas.xmlsoap.org/soap/envelope/'}
+                            'xmlns:soap' => 'http://schemas.xmlsoap.org/soap/envelope/' }
 
       TX_NAMESPACE = 'http://merchantwarehouse.com/MerchantWARE/Client/TransactionRetail'
       TX_NAMESPACE_V4 = 'http://schemas.merchantwarehouse.com/merchantware/40/Credit/'
@@ -272,7 +272,7 @@ module ActiveMerchant #:nodoc:
           response[element.name] = element.text
         end
 
-        response[:message] = response['faultstring'].to_s.gsub("\n", ' ')
+        response[:message] = response['faultstring'].to_s.tr("\n", ' ')
         response
       rescue REXML::ParseException
         response[:http_body]        = http_response.body
@@ -290,7 +290,9 @@ module ActiveMerchant #:nodoc:
 
       def commit(action, request, v4 = false)
         begin
-          data = ssl_post(url(v4), request,
+          data = ssl_post(
+            url(v4),
+            request,
             'Content-Type' => 'text/xml; charset=utf-8',
             'SOAPAction'   => soap_action(action, v4)
           )
@@ -299,7 +301,10 @@ module ActiveMerchant #:nodoc:
           response = parse_error(e.response)
         end
 
-        Response.new(response[:success], response[:message], response,
+        Response.new(
+          response[:success],
+          response[:message],
+          response,
           test: test?,
           authorization: authorization_from(response),
           avs_result: { code: response['AVSResponse'] },

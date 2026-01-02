@@ -179,8 +179,8 @@ class PacNetRavenGatewayTest < Test::Unit::TestCase
 
   def test_add_address
     result = {}
-    @gateway.send(:add_address, result, billing_address: {address1: 'Address 1', address2: 'Address 2', zip: 'ZIP'})
-    assert_equal ['BillingPostalCode', 'BillingStreetAddressLineFour', 'BillingStreetAddressLineOne'], result.stringify_keys.keys.sort
+    @gateway.send(:add_address, result, billing_address: { address1: 'Address 1', address2: 'Address 2', zip: 'ZIP' })
+    assert_equal %w[BillingPostalCode BillingStreetAddressLineFour BillingStreetAddressLineOne], result.stringify_keys.keys.sort
     assert_equal 'ZIP', result['BillingPostalCode']
     assert_equal 'Address 2', result['BillingStreetAddressLineFour']
     assert_equal 'Address 1', result['BillingStreetAddressLineOne']
@@ -189,7 +189,7 @@ class PacNetRavenGatewayTest < Test::Unit::TestCase
   def test_add_creditcard
     result = {}
     @gateway.send(:add_creditcard, result, @credit_card)
-    assert_equal ['CVV2', 'CardNumber', 'Expiry'], result.stringify_keys.keys.sort
+    assert_equal %w[CVV2 CardNumber Expiry], result.stringify_keys.keys.sort
     assert_equal @credit_card.number, result['CardNumber']
     assert_equal @gateway.send(:expdate, @credit_card), result['Expiry']
     assert_equal @credit_card.verification_value, result['CVV2']
@@ -203,13 +203,13 @@ class PacNetRavenGatewayTest < Test::Unit::TestCase
 
   def test_add_currency_code_from_options
     result = {}
-    @gateway.send(:add_currency_code, result, 100, {currency: 'CAN'})
+    @gateway.send(:add_currency_code, result, 100, { currency: 'CAN' })
     assert_equal 'CAN', result['Currency']
   end
 
   def test_parse
     result = @gateway.send(:parse, 'key1=value1&key2=value2')
-    h = {'key1' => 'value1', 'key2' => 'value2'}
+    h = { 'key1' => 'value1', 'key2' => 'value2' }
     assert_equal h, result
   end
 
@@ -337,7 +337,8 @@ class PacNetRavenGatewayTest < Test::Unit::TestCase
     @gateway.stubs(request_id: 'wouykiikdvqbwwxueppby')
     @gateway.stubs(timestamp: '2013-10-08T14:31:54.Z')
 
-    assert_equal "PymtType=cc_preauth&RAPIVersion=2&UserName=user&Timestamp=2013-10-08T14%3A31%3A54.Z&RequestID=wouykiikdvqbwwxueppby&Signature=7794efc8c0d39f0983edc10f778e6143ba13531d&CardNumber=4242424242424242&Expiry=09#{@credit_card.year.to_s[-2..-1]}&CVV2=123&Currency=USD&BillingStreetAddressLineOne=Address+1&BillingStreetAddressLineFour=Address+2&BillingPostalCode=ZIP123",
+    assert_equal(
+      "PymtType=cc_preauth&RAPIVersion=2&UserName=user&Timestamp=2013-10-08T14%3A31%3A54.Z&RequestID=wouykiikdvqbwwxueppby&Signature=7794efc8c0d39f0983edc10f778e6143ba13531d&CardNumber=4242424242424242&Expiry=09#{@credit_card.year.to_s[-2..-1]}&CVV2=123&Currency=USD&BillingStreetAddressLineOne=Address+1&BillingStreetAddressLineFour=Address+2&BillingPostalCode=ZIP123",
       @gateway.send(:post_data, 'cc_preauth', {
         'CardNumber' => @credit_card.number,
         'Expiry' => @gateway.send(:expdate, @credit_card),
@@ -347,6 +348,7 @@ class PacNetRavenGatewayTest < Test::Unit::TestCase
         'BillingStreetAddressLineFour' => 'Address 2',
         'BillingPostalCode' => 'ZIP123'
       })
+    )
   end
 
   def test_signature_for_cc_preauth_action

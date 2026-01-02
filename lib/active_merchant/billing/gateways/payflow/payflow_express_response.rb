@@ -1,5 +1,5 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class PayflowExpressResponse < Response
       def email
         @params['e_mail']
@@ -35,7 +35,7 @@ module ActiveMerchant #:nodoc:
            'state'      => @params['state'],
            'country'    => @params['country'],
            'zip'        => @params['zip'],
-           'phone'      => phone, }
+           'phone'      => phone }
       end
     end
   end
