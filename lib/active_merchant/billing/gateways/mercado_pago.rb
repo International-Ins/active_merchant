@@ -1,21 +1,23 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class MercadoPagoGateway < Gateway
-      self.live_url = self.test_url = 'https://api.mercadopago.com/v1'
+      version 'v1'
 
-      self.supported_countries = ['AR', 'BR', 'CL', 'CO', 'MX', 'PE', 'UY']
-      self.supported_cardtypes = [:visa, :master, :american_express, :elo, :cabal, :naranja]
+      self.live_url = self.test_url = "https://api.mercadopago.com/#{fetch_version}"
+
+      self.supported_countries = %w[AR BR CL CO MX PE UY]
+      self.supported_cardtypes = %i[visa master american_express elo cabal naranja creditel patagonia_365 tarjeta_sol]
 
       self.homepage_url = 'https://www.mercadopago.com/'
       self.display_name = 'Mercado Pago'
       self.money_format = :dollars
 
-      def initialize(options={})
+      def initialize(options = {})
         requires!(options, :access_token)
         super
       end
 
-      def purchase(money, payment, options={})
+      def purchase(money, payment, options = {})
         MultiResponse.run do |r|
           r.process { commit('tokenize', 'card_tokens', card_token_request(money, payment, options)) }
           options[:card_token] = r.authorization.split('|').first
@@ -23,7 +25,7 @@ module ActiveMerchant #:nodoc:
         end
       end
 
-      def authorize(money, payment, options={})
+      def authorize(money, payment, options = {})
         MultiResponse.run do |r|
           r.process { commit('tokenize', 'card_tokens', card_token_request(money, payment, options)) }
           options[:card_token] = r.authorization.split('|').first
@@ -31,32 +33,39 @@ module ActiveMerchant #:nodoc:
         end
       end
 
-      def capture(money, authorization, options={})
+      def capture(money, authorization, options = {})
         post = {}
-        authorization, _ = authorization.split('|')
+        authorization, = authorization.split('|')
         post[:capture] = true
         post[:transaction_amount] = amount(money).to_f
         commit('capture', "payments/#{authorization}", post)
       end
 
-      def refund(money, authorization, options={})
+      def refund(money, authorization, options = {})
         post = {}
         authorization, original_amount = authorization.split('|')
         post[:amount] = amount(money).to_f if original_amount && original_amount.to_f > amount(money).to_f
+        add_idempotency_key(post, options)
         commit('refund', "payments/#{authorization}/refunds", post)
       end
 
-      def void(authorization, options={})
-        authorization, _ = authorization.split('|')
+      def void(authorization, options = {})
+        authorization, = authorization.split('|')
         post = { status: 'cancelled' }
         commit('void', "payments/#{authorization}", post)
       end
 
-      def verify(credit_card, options={})
+      def verify(credit_card, options = {})
+        verify_amount = 100
+        verify_amount = options[:amount].to_i if options[:amount]
         MultiResponse.run(:use_first_response) do |r|
-          r.process { authorize(100, credit_card, options) }
+          r.process { authorize(verify_amount, credit_card, options) }
           r.process(:ignore_result) { void(r.authorization, options) }
         end
+      end
+
+      def inquire(authorization, options = {})
+        commit('inquire', inquire_path(authorization, options), {})
       end
 
       def supports_scrubbing?
@@ -79,7 +88,7 @@ module ActiveMerchant #:nodoc:
         post[:expiration_month] = payment.month
         post[:expiration_year] = payment.year
         post[:cardholder] = {
-          name: payment.name,
+          name: format_name(payment.name),
           identification: {
             type: options[:cardholder_identification_type],
             number: options[:cardholder_identification_number]
@@ -98,13 +107,16 @@ module ActiveMerchant #:nodoc:
         add_processing_mode(post, options)
         add_net_amount(post, options)
         add_taxes(post, options)
-        post[:binary_mode] = (options[:binary_mode].nil? ? true : options[:binary_mode])
+        add_notification_url(post, options)
+        add_idempotency_key(post, options)
+        add_3ds(post, options)
+        post[:binary_mode] = options.fetch(:binary_mode, true) unless options[:execute_threed]
         post
       end
 
       def authorize_request(money, payment, options = {})
         post = purchase_request(money, payment, options)
-        post[:capture] = false
+        post[:capture] = options[:capture] || false
         post
       end
 
@@ -113,6 +125,7 @@ module ActiveMerchant #:nodoc:
 
         post[:processing_mode] = options[:processing_mode]
         post[:merchant_account_id] = options[:merchant_account_id] if options[:merchant_account_id]
+        post[:payment_method_option_id] = options[:payment_method_option_id] if options[:payment_method_option_id]
         add_merchant_services(post, options)
       end
 
@@ -126,7 +139,8 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_additional_data(post, options)
-        post[:sponsor_id] = options[:sponsor_id]
+        post[:sponsor_id] = options[:sponsor_id] unless test?
+        post[:metadata] = options[:metadata] if options[:metadata]
         post[:device_id] = options[:device_id] if options[:device_id]
         post[:additional_info] = {
           ip_address: options[:ip_address]
@@ -139,9 +153,9 @@ module ActiveMerchant #:nodoc:
       def add_customer_data(post, payment, options)
         post[:payer] = {
           email: options[:email],
-          first_name: payment.first_name,
-          last_name: payment.last_name
-        }
+          first_name: format_name(payment.first_name),
+          last_name: format_name(payment.last_name)
+        }.merge(options[:payer] || {})
       end
 
       def add_address(post, options)
@@ -189,7 +203,7 @@ module ActiveMerchant #:nodoc:
         post[:description] = options[:description]
         post[:installments] = options[:installments] ? options[:installments].to_i : 1
         post[:statement_descriptor] = options[:statement_descriptor] if options[:statement_descriptor]
-        post[:external_reference] = options[:order_id] || SecureRandom.hex(16)
+        post[:external_reference] = options[:order_id] || options[:external_reference] || SecureRandom.hex(16)
       end
 
       def add_payment(post, options)
@@ -200,6 +214,14 @@ module ActiveMerchant #:nodoc:
 
       def add_net_amount(post, options)
         post[:net_amount] = Float(options[:net_amount]) if options[:net_amount]
+      end
+
+      def add_idempotency_key(post, options)
+        post[:idempotency_key] = options[:idempotency_key] if options[:idempotency_key]
+      end
+
+      def add_notification_url(post, options)
+        post[:notification_url] = options[:notification_url] if options[:notification_url]
       end
 
       def add_taxes(post, options)
@@ -250,8 +272,12 @@ module ActiveMerchant #:nodoc:
       end
 
       def commit(action, path, parameters)
-        if ['capture', 'void'].include?(action)
+        if %w[capture void].include?(action)
           response = parse(ssl_request(:put, url(path), post_data(parameters), headers))
+        elsif action == 'inquire'
+          response = parse(ssl_get(url(path), headers))
+
+          response = response[0]['results'][0] if response.is_a?(Array)
         else
           response = parse(ssl_post(url(path), post_data(parameters), headers(parameters)))
         end
@@ -270,7 +296,7 @@ module ActiveMerchant #:nodoc:
         if action == 'refund'
           response['status'] != 404 && response['error'].nil?
         else
-          ['active', 'approved', 'authorized', 'cancelled', 'in_process'].include?(response['status'])
+          %w[active approved authorized cancelled in_process pending].include?(response['status'])
         end
       end
 
@@ -283,7 +309,20 @@ module ActiveMerchant #:nodoc:
       end
 
       def post_data(parameters = {})
-        parameters.clone.tap { |p| p.delete(:device_id) }.to_json
+        params = parameters.clone.tap do |p|
+          p.delete(:device_id)
+          p.delete(:idempotency_key)
+        end
+        params.to_json
+      end
+
+      def inquire_path(authorization, options)
+        if authorization
+          authorization, = authorization.split('|')
+          "payments/#{authorization}"
+        else
+          "payments/search?external_reference=#{options[:order_id] || options[:external_reference]}"
+        end
       end
 
       def error_code_from(action, response)
@@ -296,6 +335,13 @@ module ActiveMerchant #:nodoc:
         end
       end
 
+      def add_3ds(post, options)
+        return unless options[:execute_threed]
+
+        post[:three_d_secure_mode] = options[:three_ds_mode] == 'mandatory' ? 'mandatory' : 'optional'
+        post[:notification_url] = options[:notification_url] if options[:notification_url]
+      end
+
       def url(action)
         full_url = (test? ? test_url : live_url)
         full_url + "/#{action}?access_token=#{CGI.escape(@options[:access_token])}"
@@ -305,7 +351,8 @@ module ActiveMerchant #:nodoc:
         headers = {
           'Content-Type' => 'application/json'
         }
-        headers['X-Device-Session-ID'] = options[:device_id] if options[:device_id]
+        headers['X-meli-session-id'] = options[:device_id] if options[:device_id]
+        headers['X-Idempotency-Key'] = options[:idempotency_key] if options[:idempotency_key]
         headers
       end
 

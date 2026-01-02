@@ -1,13 +1,13 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class EpayGateway < Gateway
       self.live_url = 'https://ssl.ditonlinebetalingssystem.dk/'
 
       self.default_currency = 'DKK'
       self.money_format = :cents
-      self.supported_cardtypes = [:dankort, :forbrugsforeningen, :visa, :master,
-                                  :american_express, :diners_club, :jcb, :maestro]
-      self.supported_countries = ['DK', 'SE', 'NO']
+      self.supported_countries = %w[DK SE NO]
+      self.supported_cardtypes = %i[dankort forbrugsforeningen visa master
+                                    american_express diners_club jcb maestro]
       self.homepage_url = 'http://epay.dk/'
       self.display_name = 'ePay'
 
@@ -174,17 +174,21 @@ module ActiveMerchant #:nodoc:
         response = send("do_#{action}", params)
 
         if action == :authorize
-          Response.new response['accept'].to_i == 1,
+          Response.new(
+            response['accept'].to_i == 1,
             response['errortext'],
             response,
             test: test?,
             authorization: response['tid']
+          )
         else
-          Response.new response['result'] == 'true',
+          Response.new(
+            response['result'] == 'true',
             messages(response['epay'], response['pbs']),
             response,
             test: test?,
             authorization: params[:transaction]
+          )
         end
       end
 

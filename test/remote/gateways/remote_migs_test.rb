@@ -52,7 +52,7 @@ class RemoteMigsTest < Test::Unit::TestCase
     }
 
     responses.each_pair do |card_type, response_text|
-      url = @gateway.purchase_offsite_url(@amount, options.merge(card_type: card_type))
+      url = @gateway.purchase_offsite_url(@amount, options.merge(card_type:))
       assert_response_match response_text, url
     end
   end
@@ -211,7 +211,7 @@ class RemoteMigsTest < Test::Unit::TestCase
 
   def https_response(url, cookie = nil)
     retry_exceptions do
-      headers = cookie ? {'Cookie' => cookie} : {}
+      headers = cookie ? { 'Cookie' => cookie } : {}
       response = raw_ssl_request(:get, url, nil, headers)
       if response.is_a?(Net::HTTPRedirection)
         new_cookie = [cookie, response['Set-Cookie']].compact.join(';')

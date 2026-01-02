@@ -1,5 +1,5 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     # The Mercury gateway integration by default requires that the Mercury
     # account being used has tokenization turned. This enables the use of
     # capture/refund/void without having to pass the credit card back in each
@@ -18,8 +18,8 @@ module ActiveMerchant #:nodoc:
 
       self.homepage_url = 'http://www.mercurypay.com'
       self.display_name = 'Mercury'
-      self.supported_countries = ['US', 'CA']
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :diners_club, :jcb]
+      self.supported_countries = %w[US CA]
+      self.supported_cardtypes = %i[visa master american_express discover diners_club jcb]
       self.default_currency = 'USD'
 
       STANDARD_ERROR_CODE_MAPPING = {
@@ -69,14 +69,14 @@ module ActiveMerchant #:nodoc:
         commit('Return', request)
       end
 
-      def void(authorization, options={})
+      def void(authorization, options = {})
         requires!(options, :credit_card) unless @use_tokenization
 
         request = build_authorized_request('VoidSale', nil, authorization, options[:credit_card], options)
         commit('VoidSale', request)
       end
 
-      def store(credit_card, options={})
+      def store(credit_card, options = {})
         request = build_card_lookup_request(credit_card, options)
         commit('CardLookup', request)
       end
@@ -103,7 +103,7 @@ module ActiveMerchant #:nodoc:
           xml.tag! 'Transaction' do
             xml.tag! 'TranType', 'Credit'
             xml.tag! 'TranCode', action
-            xml.tag! 'PartialAuth', 'Allow' if options[:allow_partial_auth] && ['PreAuth', 'Sale'].include?(action)
+            xml.tag! 'PartialAuth', 'Allow' if options[:allow_partial_auth] && %w[PreAuth Sale].include?(action)
             add_invoice(xml, options[:order_id], nil, options)
             add_reference(xml, 'RecordNumberRequested')
             add_customer_data(xml, options)
@@ -211,11 +211,11 @@ module ActiveMerchant #:nodoc:
             # handle with the validation error as it sees fit.
             # Track 2 requires having the STX and ETX stripped. Track 1 does not.
             # Max-length track 1s require having the STX and ETX stripped. Max is 79 bytes including LRC.
-            is_track_2 = credit_card.track_data[0] == ';'
+            is_track2 = credit_card.track_data[0] == ';'
             etx_index = credit_card.track_data.rindex('?') || credit_card.track_data.length
             is_max_track1 = etx_index >= 77
 
-            if is_track_2
+            if is_track2
               xml.tag! 'Track2', credit_card.track_data[1...etx_index]
             elsif is_max_track1
               xml.tag! 'Track1', credit_card.track_data[1...etx_index]
@@ -294,7 +294,7 @@ module ActiveMerchant #:nodoc:
         }
       end
 
-      SUCCESS_CODES = ['Approved', 'Success']
+      SUCCESS_CODES = %w[Approved Success]
 
       def commit(action, request)
         response = parse(action, ssl_post(endpoint_url, build_soap_request(request), build_header))
@@ -302,12 +302,16 @@ module ActiveMerchant #:nodoc:
         success = SUCCESS_CODES.include?(response[:cmd_status])
         message = success ? 'Success' : message_from(response)
 
-        Response.new(success, message, response,
+        Response.new(
+          success,
+          message,
+          response,
           test: test?,
           authorization: authorization_from(response),
           avs_result: { code: response[:avs_result] },
           cvv_result: response[:cvv_result],
-          error_code: success ? nil : STANDARD_ERROR_CODE_MAPPING[response[:dsix_return_code]])
+          error_code: success ? nil : STANDARD_ERROR_CODE_MAPPING[response[:dsix_return_code]]
+        )
       end
 
       def message_from(response)
@@ -345,7 +349,9 @@ module ActiveMerchant #:nodoc:
       end
 
       def unescape_xml(escaped_xml)
-        escaped_xml.gsub(/\&gt;/, '>').gsub(/\&lt;/, '<')
+        xml = escaped_xml.gsub(/\&gt;/, '>').gsub(/\r/, '').gsub(/\n/, '').gsub(/\t/, '').gsub('&lt;', '<')
+        xml.slice! "<?xml version=\"1.0\"?>" # rubocop:disable Style/StringLiterals
+        xml
       end
     end
   end

@@ -1,5 +1,5 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class QbmsGateway < Gateway
       API_VERSION = '4.0'
 
@@ -11,7 +11,7 @@ module ActiveMerchant #:nodoc:
       self.homepage_url = 'http://payments.intuit.com/'
       self.display_name = 'QuickBooks Merchant Services'
       self.default_currency = 'USD'
-      self.supported_cardtypes = [:visa, :master, :discover, :american_express, :diners_club, :jcb]
+      self.supported_cardtypes = %i[visa master discover american_express diners_club jcb]
       self.supported_countries = ['US']
 
       TYPES = {
@@ -20,7 +20,7 @@ module ActiveMerchant #:nodoc:
         purchase: 'CustomerCreditCardCharge',
         refund: 'CustomerCreditCardTxnVoidOrRefund',
         void: 'CustomerCreditCardTxnVoid',
-        query: 'MerchantAccountQuery',
+        query: 'MerchantAccountQuery'
       }
 
       # Creates a new QbmsGateway
@@ -142,7 +142,10 @@ module ActiveMerchant #:nodoc:
         response = parse(type, data)
         message = (response[:status_message] || '').strip
 
-        Response.new(success?(response), message, response,
+        Response.new(
+          success?(response),
+          message,
+          response,
           test: test?,
           authorization: response[:credit_card_trans_id],
           fraud_review: fraud_review?(response),
@@ -167,8 +170,8 @@ module ActiveMerchant #:nodoc:
 
         if status_code != 0
           return {
-            status_code: status_code,
-            status_message: signon.attributes['statusMessage'],
+            status_code:,
+            status_message: signon.attributes['statusMessage']
           }
         end
 
@@ -176,7 +179,7 @@ module ActiveMerchant #:nodoc:
 
         results = {
           status_code: response.attributes['statusCode'].to_i,
-          status_message: response.attributes['statusMessage'],
+          status_message: response.attributes['statusMessage']
         }
 
         response.elements.each do |e|

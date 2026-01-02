@@ -15,7 +15,18 @@ class FatZebraTest < Test::Unit::TestCase
     @options = {
       order_id: rand(10000),
       billing_address: address,
-      description: 'Store Purchase'
+      description: 'Store Purchase',
+      extra: { card_on_file: false }
+    }
+
+    @three_ds_secure = {
+      version: '2.2.0',
+      cavv: '3q2+78r+ur7erb7vyv66vv\/\/\/\/8=',
+      eci: '05',
+      xid: 'ODUzNTYzOTcwODU5NzY3Qw==',
+      enrolled: 'true',
+      ds_transaction_id: 'f25084f0-5b16-4c0a-ae5d-b24808a95e4b',
+      authentication_response_status: 'Y'
     }
   end
 
@@ -30,7 +41,7 @@ class FatZebraTest < Test::Unit::TestCase
   end
 
   def test_successful_purchase_with_metadata
-    @gateway.expects(:ssl_request).with { |method, url, body, headers|
+    @gateway.expects(:ssl_request).with { |_method, _url, body, _headers|
       body.match '"metadata":{"foo":"bar"}'
     }.returns(successful_purchase_response_with_metadata)
 
@@ -42,7 +53,7 @@ class FatZebraTest < Test::Unit::TestCase
   end
 
   def test_successful_purchase_with_token
-    @gateway.expects(:ssl_request).with { |method, url, body, headers|
+    @gateway.expects(:ssl_request).with { |_method, _url, body, _headers|
       body.match '"card_token":"e1q7dbj2"'
     }.returns(successful_purchase_response)
 
@@ -54,7 +65,7 @@ class FatZebraTest < Test::Unit::TestCase
   end
 
   def test_successful_purchase_with_token_string
-    @gateway.expects(:ssl_request).with { |method, url, body, headers|
+    @gateway.expects(:ssl_request).with { |_method, _url, body, _headers|
       body.match '"card_token":"e1q7dbj2"'
     }.returns(successful_purchase_response)
 
@@ -66,7 +77,7 @@ class FatZebraTest < Test::Unit::TestCase
   end
 
   def test_successful_multi_currency_purchase
-    @gateway.expects(:ssl_request).with { |method, url, body, headers|
+    @gateway.expects(:ssl_request).with { |_method, _url, body, _headers|
       body.match '"currency":"USD"'
     }.returns(successful_purchase_response)
 
@@ -80,13 +91,13 @@ class FatZebraTest < Test::Unit::TestCase
   def test_successful_purchase_with_recurring_flag
     stub_comms(@gateway, :ssl_request) do
       @gateway.purchase(@amount, @credit_card, @options.merge(recurring: true))
-    end.check_request do |method, endpoint, data, headers|
-      assert_match(%r("extra":{"ecm":"32"}), data)
+    end.check_request do |_method, _endpoint, data, _headers|
+      assert_match(%r("extra":{"ecm":"32"), data)
     end.respond_with(successful_purchase_response)
   end
 
   def test_successful_purchase_with_descriptor
-    @gateway.expects(:ssl_request).with { |method, url, body, headers|
+    @gateway.expects(:ssl_request).with { |_method, _url, body, _headers|
       json = JSON.parse(body)
       json['extra']['name'] == 'Merchant' && json['extra']['location'] == 'Location'
     }.returns(successful_purchase_response)
@@ -99,7 +110,7 @@ class FatZebraTest < Test::Unit::TestCase
   end
 
   def test_successful_authorization
-    @gateway.expects(:ssl_request).with { |method, url, body, headers|
+    @gateway.expects(:ssl_request).with { |_method, _url, body, _headers|
       body.match '"capture":false'
     }.returns(successful_purchase_response)
 
@@ -111,7 +122,7 @@ class FatZebraTest < Test::Unit::TestCase
   end
 
   def test_successful_capture
-    @gateway.expects(:ssl_request).with { |method, url, body, headers|
+    @gateway.expects(:ssl_request).with { |_method, url, _body, _headers|
       url =~ %r[purchases/e1q7dbj2/capture\z]
     }.returns(successful_purchase_response)
 
@@ -211,61 +222,116 @@ class FatZebraTest < Test::Unit::TestCase
     assert_equal @gateway.scrub(pre_scrubbed), post_scrubbed
   end
 
+  def test_three_ds_v2_object_construction
+    post = {}
+    @options[:three_d_secure] = @three_ds_secure
+
+    @gateway.send(:add_three_ds, post, @options)
+
+    assert post[:extra]
+    ds_data = post[:extra]
+    ds_options = @options[:three_d_secure]
+
+    assert_equal ds_options[:version], ds_data[:threeds_version]
+    assert_equal ds_options[:cavv], ds_data[:cavv]
+    assert_equal ds_options[:eci], ds_data[:sli]
+    assert_equal ds_options[:xid], ds_data[:xid]
+    assert_equal ds_options[:ds_transaction_id], ds_data[:directory_server_txn_id]
+    assert_equal 'Y', ds_data[:ver]
+    assert_equal ds_options[:authentication_response_status], ds_data[:par]
+  end
+
+  def test_purchase_with_three_ds
+    @options[:three_d_secure] = @three_ds_secure
+    stub_comms(@gateway, :ssl_request) do
+      @gateway.purchase(@amount, @credit_card, @options)
+    end.check_request(skip_response: true) do |_method, _endpoint, data, _headers|
+      three_ds_params = JSON.parse(data)['extra']
+      assert_equal '2.2.0', three_ds_params['threeds_version']
+      assert_equal '3q2+78r+ur7erb7vyv66vv\/\/\/\/8=', three_ds_params['cavv']
+      assert_equal '05', three_ds_params['sli']
+      assert_equal 'ODUzNTYzOTcwODU5NzY3Qw==', three_ds_params['xid']
+      assert_equal 'Y', three_ds_params['ver']
+      assert_equal 'Y', three_ds_params['par']
+    end
+  end
+
+  def test_formatted_enrollment
+    assert_equal 'Y', @gateway.send('formatted_enrollment', 'Y')
+    assert_equal 'Y', @gateway.send('formatted_enrollment', 'true')
+    assert_equal 'Y', @gateway.send('formatted_enrollment', true)
+
+    assert_equal 'N', @gateway.send('formatted_enrollment', 'N')
+    assert_equal 'N', @gateway.send('formatted_enrollment', 'false')
+    assert_equal 'N', @gateway.send('formatted_enrollment', false)
+
+    assert_equal 'U', @gateway.send('formatted_enrollment', 'U')
+  end
+
+  def test_api_version
+    assert_equal 'v1.0', @gateway.fetch_version
+  end
+
+  def test_urls_for_test_and_live_mode
+    assert_equal 'https://gateway.sandbox.fatzebra.com.au/v1.0', @gateway.test_url
+    assert_equal 'https://gateway.fatzebra.com.au/v1.0', @gateway.live_url
+  end
+
   private
 
   def pre_scrubbed
-    <<-'PRE_SCRUBBED'
-opening connection to gateway.sandbox.fatzebra.com.au:443...
-opened
-starting SSL for gateway.sandbox.fatzebra.com.au:443...
-SSL established
-<- "POST /v1.0/credit_cards HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\nAuthorization: Basic VEVTVDpURVNU\r\nUser-Agent: Fat Zebra v1.0/ActiveMerchant 1.56.0\r\nAccept-Encoding: gzip;q=1.0,deflate;q=0.6,identity;q=0.3\r\nAccept: */*\r\nConnection: close\r\nHost: gateway.sandbox.fatzebra.com.au\r\nContent-Length: 93\r\n\r\n"
-<- "{\"card_number\":\"5123456789012346\",\"card_expiry\":\"5/2017\",\"cvv\":\"111\",\"card_holder\":\"Foo Bar\"}"
--> "HTTP/1.1 200 OK\r\n"
--> "Content-Type: application/json; charset=utf-8\r\n"
--> "Connection: close\r\n"
--> "Status: 200 OK\r\n"
--> "Cache-control: no-store\r\n"
--> "Pragma: no-cache\r\n"
--> "X-Request-Id: 3BA78272_F214_AC10001D_01BB_566A58EC_222F1D_49F4\r\n"
--> "X-Runtime: 0.142463\r\n"
--> "Date: Fri, 11 Dec 2015 05:02:36 GMT\r\n"
--> "X-Rack-Cache: invalidate, pass\r\n"
--> "X-Sandbox: true\r\n"
--> "X-Backend-Server: app-3\r\n"
--> "\r\n"
-reading all...
--> "{\"successful\":true,\"response\":{\"token\":\"nkk9rhwu\",\"card_holder\":\"Foo Bar\",\"card_number\":\"512345XXXXXX2346\",\"card_expiry\":\"2017-05-31T23:59:59+10:00\",\"authorized\":true,\"transaction_count\":0},\"errors\":[],\"test\":true}"
-read 214 bytes
-Conn close
+    <<~'PRE_SCRUBBED'
+      opening connection to gateway.sandbox.fatzebra.com.au:443...
+      opened
+      starting SSL for gateway.sandbox.fatzebra.com.au:443...
+      SSL established
+      <- "POST /v1.0/credit_cards HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\nAuthorization: Basic VEVTVDpURVNU\r\nUser-Agent: Fat Zebra v1.0/ActiveMerchant 1.56.0\r\nAccept-Encoding: gzip;q=1.0,deflate;q=0.6,identity;q=0.3\r\nAccept: */*\r\nConnection: close\r\nHost: gateway.sandbox.fatzebra.com.au\r\nContent-Length: 93\r\n\r\n"
+      <- "{\"card_number\":\"5123456789012346\",\"card_expiry\":\"5/2017\",\"cvv\":\"111\",\"card_holder\":\"Foo Bar\"}"
+      -> "HTTP/1.1 200 OK\r\n"
+      -> "Content-Type: application/json; charset=utf-8\r\n"
+      -> "Connection: close\r\n"
+      -> "Status: 200 OK\r\n"
+      -> "Cache-control: no-store\r\n"
+      -> "Pragma: no-cache\r\n"
+      -> "X-Request-Id: 3BA78272_F214_AC10001D_01BB_566A58EC_222F1D_49F4\r\n"
+      -> "X-Runtime: 0.142463\r\n"
+      -> "Date: Fri, 11 Dec 2015 05:02:36 GMT\r\n"
+      -> "X-Rack-Cache: invalidate, pass\r\n"
+      -> "X-Sandbox: true\r\n"
+      -> "X-Backend-Server: app-3\r\n"
+      -> "\r\n"
+      reading all...
+      -> "{\"successful\":true,\"response\":{\"token\":\"nkk9rhwu\",\"card_holder\":\"Foo Bar\",\"card_number\":\"512345XXXXXX2346\",\"card_expiry\":\"2017-05-31T23:59:59+10:00\",\"authorized\":true,\"transaction_count\":0},\"errors\":[],\"test\":true}"
+      read 214 bytes
+      Conn close
     PRE_SCRUBBED
   end
 
   def post_scrubbed
-    <<-'POST_SCRUBBED'
-opening connection to gateway.sandbox.fatzebra.com.au:443...
-opened
-starting SSL for gateway.sandbox.fatzebra.com.au:443...
-SSL established
-<- "POST /v1.0/credit_cards HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\nAuthorization: Basic [FILTERED]\r\nUser-Agent: Fat Zebra v1.0/ActiveMerchant 1.56.0\r\nAccept-Encoding: gzip;q=1.0,deflate;q=0.6,identity;q=0.3\r\nAccept: */*\r\nConnection: close\r\nHost: gateway.sandbox.fatzebra.com.au\r\nContent-Length: 93\r\n\r\n"
-<- "{\"card_number\":\"[FILTERED]\",\"card_expiry\":\"5/2017\",\"cvv\":\"[FILTERED]\",\"card_holder\":\"Foo Bar\"}"
--> "HTTP/1.1 200 OK\r\n"
--> "Content-Type: application/json; charset=utf-8\r\n"
--> "Connection: close\r\n"
--> "Status: 200 OK\r\n"
--> "Cache-control: no-store\r\n"
--> "Pragma: no-cache\r\n"
--> "X-Request-Id: 3BA78272_F214_AC10001D_01BB_566A58EC_222F1D_49F4\r\n"
--> "X-Runtime: 0.142463\r\n"
--> "Date: Fri, 11 Dec 2015 05:02:36 GMT\r\n"
--> "X-Rack-Cache: invalidate, pass\r\n"
--> "X-Sandbox: true\r\n"
--> "X-Backend-Server: app-3\r\n"
--> "\r\n"
-reading all...
--> "{\"successful\":true,\"response\":{\"token\":\"nkk9rhwu\",\"card_holder\":\"Foo Bar\",\"card_number\":\"[FILTERED]\",\"card_expiry\":\"2017-05-31T23:59:59+10:00\",\"authorized\":true,\"transaction_count\":0},\"errors\":[],\"test\":true}"
-read 214 bytes
-Conn close
+    <<~'POST_SCRUBBED'
+      opening connection to gateway.sandbox.fatzebra.com.au:443...
+      opened
+      starting SSL for gateway.sandbox.fatzebra.com.au:443...
+      SSL established
+      <- "POST /v1.0/credit_cards HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\nAuthorization: Basic [FILTERED]\r\nUser-Agent: Fat Zebra v1.0/ActiveMerchant 1.56.0\r\nAccept-Encoding: gzip;q=1.0,deflate;q=0.6,identity;q=0.3\r\nAccept: */*\r\nConnection: close\r\nHost: gateway.sandbox.fatzebra.com.au\r\nContent-Length: 93\r\n\r\n"
+      <- "{\"card_number\":\"[FILTERED]\",\"card_expiry\":\"5/2017\",\"cvv\":\"[FILTERED]\",\"card_holder\":\"Foo Bar\"}"
+      -> "HTTP/1.1 200 OK\r\n"
+      -> "Content-Type: application/json; charset=utf-8\r\n"
+      -> "Connection: close\r\n"
+      -> "Status: 200 OK\r\n"
+      -> "Cache-control: no-store\r\n"
+      -> "Pragma: no-cache\r\n"
+      -> "X-Request-Id: 3BA78272_F214_AC10001D_01BB_566A58EC_222F1D_49F4\r\n"
+      -> "X-Runtime: 0.142463\r\n"
+      -> "Date: Fri, 11 Dec 2015 05:02:36 GMT\r\n"
+      -> "X-Rack-Cache: invalidate, pass\r\n"
+      -> "X-Sandbox: true\r\n"
+      -> "X-Backend-Server: app-3\r\n"
+      -> "\r\n"
+      reading all...
+      -> "{\"successful\":true,\"response\":{\"token\":\"nkk9rhwu\",\"card_holder\":\"Foo Bar\",\"card_number\":\"[FILTERED]\",\"card_expiry\":\"2017-05-31T23:59:59+10:00\",\"authorized\":true,\"transaction_count\":0},\"errors\":[],\"test\":true}"
+      read 214 bytes
+      Conn close
     POST_SCRUBBED
   end
 
@@ -295,7 +361,7 @@ Conn close
         rrn: '000000000000',
         cvv_match: 'U',
         metadata: {
-        },
+        }
       },
       test: true,
       errors: []
@@ -327,8 +393,8 @@ Conn close
         rrn: '000000000000',
         cvv_match: 'U',
         metadata: {
-          'foo' => 'bar',
-        },
+          'foo' => 'bar'
+        }
       },
       test: true,
       errors: []
@@ -390,7 +456,7 @@ Conn close
         metadata: {
         },
         standalone: false,
-        rrn: '000000000002',
+        rrn: '000000000002'
       },
       errors: [],
       test: true

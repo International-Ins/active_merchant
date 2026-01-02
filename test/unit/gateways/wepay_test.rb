@@ -18,6 +18,10 @@ class WepayTest < Test::Unit::TestCase
     }
   end
 
+  def test_api_version
+    assert_equal 'v2', @gateway.fetch_version
+  end
+
   def test_successful_purchase
     @gateway.expects(:ssl_post).at_most(3).returns(successful_capture_response)
 
@@ -160,7 +164,7 @@ class WepayTest < Test::Unit::TestCase
   def test_no_version_by_default
     stub_comms do
       @gateway.purchase(@amount, @credit_card, @options)
-    end.check_request do |endpoint, data, headers|
+    end.check_request do |_endpoint, _data, headers|
       assert_no_match(/Api-Version/, headers.to_s)
     end.respond_with(successful_authorize_response)
   end
@@ -168,7 +172,7 @@ class WepayTest < Test::Unit::TestCase
   def test_version_override
     stub_comms do
       @gateway.purchase(@amount, @credit_card, @options.merge(version: '2017-05-31'))
-    end.check_request do |endpoint, data, headers|
+    end.check_request do |_endpoint, _data, headers|
       assert_match(/"Api-Version\"=>\"2017-05-31\"/, headers.to_s)
     end.respond_with(successful_authorize_response)
   end
@@ -176,6 +180,11 @@ class WepayTest < Test::Unit::TestCase
   def test_scrub
     assert @gateway.supports_scrubbing?
     assert_equal @gateway.scrub(pre_scrubbed), post_scrubbed
+  end
+
+  def test_url
+    assert_equal 'https://wepayapi.com/v2', @gateway.live_url
+    assert_equal 'https://stage.wepayapi.com/v2', @gateway.test_url
   end
 
   private

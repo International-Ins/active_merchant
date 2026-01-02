@@ -1,5 +1,5 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class CommercegateGateway < Gateway
       self.test_url = self.live_url = 'https://secure.commercegate.com/gateway/nvp'
 
@@ -11,7 +11,7 @@ module ActiveMerchant #:nodoc:
 
       self.money_format = :dollars
       self.default_currency = 'EUR'
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover]
+      self.supported_cardtypes = %i[visa master american_express discover]
       self.homepage_url = 'http://www.commercegate.com/'
       self.display_name = 'CommerceGate'
 
@@ -102,7 +102,7 @@ module ActiveMerchant #:nodoc:
           response,
           authorization: response['transID'],
           test: test?,
-          avs_result: {code: response['avsCode']},
+          avs_result: { code: response['avsCode'] },
           cvv_result: response['cvvCode']
         )
       end
@@ -127,8 +127,8 @@ module ActiveMerchant #:nodoc:
           response['returnText']
         else
           'Invalid response received from the CommerceGate API. ' \
-          'Please contact CommerceGate support if you continue to receive this message. ' \
-          "(The raw response returned by the API was #{response.inspect})"
+            'Please contact CommerceGate support if you continue to receive this message. ' \
+            "(The raw response returned by the API was #{response.inspect})"
         end
       end
 

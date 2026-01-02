@@ -43,6 +43,38 @@ class RemoteForteTest < Test::Unit::TestCase
     response = @gateway.purchase(@amount, @check, @options)
     assert_success response
     assert_equal 'APPROVED', response.message
+    assert_equal 'PPD', response.params['echeck']['sec_code']
+  end
+
+  def test_successful_purchase_with_xdata
+    @options = @options.merge({
+      xdata: {
+        xdata_1: 'some customer metadata',
+        xdata_2: 'some customer metadata',
+        xdata_3: 'some customer metadata',
+        xdata_4: 'some customer metadata',
+        xdata_5: 'some customer metadata',
+        xdata_6: 'some customer metadata',
+        xdata_7: 'some customer metadata',
+        xdata_8: 'some customer metadata',
+        xdata_9: 'some customer metadata'
+      }
+    })
+
+    response = @gateway.purchase(@amount, @credit_card, @options)
+    assert_success response
+    (1..9).each { |n| assert_equal 'some customer metadata', response.params['xdata']["xdata_#{n}"] }
+  end
+
+  def test_successful_purchase_with_echeck_with_more_options
+    options = {
+      sec_code: 'WEB'
+    }
+
+    response = @gateway.purchase(@amount, @check, options)
+    assert_success response
+    assert_equal 'APPROVED', response.message
+    assert_equal 'WEB', response.params['echeck']['sec_code']
   end
 
   def test_failed_purchase_with_echeck
@@ -56,7 +88,7 @@ class RemoteForteTest < Test::Unit::TestCase
       order_id: '1',
       ip: '127.0.0.1',
       email: 'joe@example.com',
-      address: address
+      address:
     }
 
     response = @gateway.purchase(@amount, @credit_card, options)
@@ -200,6 +232,16 @@ class RemoteForteTest < Test::Unit::TestCase
 
     assert_scrubbed(@credit_card.number, transcript)
     assert_scrubbed(@credit_card.verification_value, transcript)
+  end
+
+  def test_account_number_scrubbing
+    transcript = capture_transcript(@gateway) do
+      @gateway.purchase(@amount, @check, @options)
+    end
+
+    clean_transcript = @gateway.scrub(transcript)
+
+    assert_scrubbed(@check.account_number, clean_transcript)
   end
 
   private

@@ -1,14 +1,14 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class GarantiGateway < Gateway
       self.live_url = 'https://sanalposprov.garanti.com.tr/VPServlet'
       self.test_url = 'https://sanalposprovtest.garanti.com.tr/VPServlet'
 
       # The countries the gateway supports merchants from as 2 digit ISO country codes
-      self.supported_countries = ['US', 'TR']
+      self.supported_countries = %w[US TR]
 
       # The card types supported by the payment gateway
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover]
+      self.supported_cardtypes = %i[visa master american_express discover]
 
       # The homepage URL of the gateway
       self.homepage_url = 'https://sanalposweb.garanti.com.tr'
@@ -219,11 +219,13 @@ module ActiveMerchant #:nodoc:
 
         success = success?(response)
 
-        Response.new(success,
+        Response.new(
+          success,
           success ? 'Approved' : "Declined (Reason: #{response[:reason_code]} - #{response[:error_msg]} - #{response[:sys_err_msg]})",
           response,
           test: test?,
-          authorization: response[:order_id])
+          authorization: response[:order_id]
+        )
       end
 
       def parse(body)

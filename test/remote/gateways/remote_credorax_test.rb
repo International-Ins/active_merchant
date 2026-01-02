@@ -5,14 +5,28 @@ class RemoteCredoraxTest < Test::Unit::TestCase
     @gateway = CredoraxGateway.new(fixtures(:credorax))
 
     @amount = 100
-    @credit_card = credit_card('4176661000001015', verification_value: '281', month: '12', year: '2022')
-    @fully_auth_card = credit_card('5223450000000007', brand: 'mastercard', verification_value: '090', month: '12', year: '2025')
-    @declined_card = credit_card('4176661000001111', verification_value: '681', month: '12', year: '2022')
-    @three_ds_card = credit_card('5455330200000016', verification_value: '737', month: '12', year: '2022')
+    @adviser_amount = 1000001
+    @credit_card = credit_card('4018810000100036', verification_value: '123', month: '12', year: 2034)
+    @fully_auth_card = credit_card('5223450000000007', brand: 'mastercard', verification_value: '090', month: '12')
+    @declined_card = credit_card('4176661000001111', verification_value: '681', month: '12')
+    @three_ds_card = credit_card('5455330200000016', verification_value: '737', month: '10', year: Time.now.year + 2)
+    @inquiry_match_card = credit_card('4123560000000072')
+    @inquiry_no_match_card = credit_card('4123560000000429')
+    @inquiry_unverified_card = credit_card('4176660000000266')
+    @address = {
+      name:     'Jon Smith',
+      address1: '123 Your Street',
+      address2: 'Apt 2',
+      city:     'Toronto',
+      state:    'ON',
+      zip:      'K2C3N7',
+      country:  'CA',
+      phone_number: '(123)456-7890'
+    }
     @options = {
       order_id: '1',
       currency: 'EUR',
-      billing_address: address,
+      billing_address: @address,
       description: 'Store Purchase'
     }
     @normalized_3ds_2_options = {
@@ -20,13 +34,14 @@ class RemoteCredoraxTest < Test::Unit::TestCase
       shopper_email: 'john.smith@test.com',
       shopper_ip: '77.110.174.153',
       shopper_reference: 'John Smith',
-      billing_address: address(),
-      shipping_address: address(),
+      billing_address: @address,
+      shipping_address: @address,
       order_id: '123',
       execute_threed: true,
       three_ds_version: '2',
       three_ds_challenge_window_size: '01',
-      stored_credential: {reason_type: 'unscheduled'},
+      three_ds_reqchallengeind: '04',
+      stored_credential: { reason_type: 'unscheduled' },
       three_ds_2: {
         channel: 'browser',
         notification_url: 'www.example.com',
@@ -42,6 +57,70 @@ class RemoteCredoraxTest < Test::Unit::TestCase
         }
       }
     }
+
+    @apple_pay_card = network_tokenization_credit_card(
+      '4012001038443335',
+      month: '12',
+      year: Time.new.year + 2,
+      first_name: 'John',
+      last_name: 'Smith',
+      verification_value: '512',
+      payment_cryptogram: 'YwAAAAAABaYcCMX/OhNRQAAAAAA=',
+      eci: '07',
+      transaction_id: 'abc123',
+      source: :apple_pay
+    )
+
+    @google_pay_card = network_tokenization_credit_card(
+      '4012001038443335',
+      payment_cryptogram: 'EHuWW9PiBkWvqE5juRwDzAUFBAk=',
+      month: '12',
+      year: Time.new.year + 2,
+      source: :google_pay,
+      transaction_id: '123456789',
+      eci: '07',
+      verification_value: 512
+    )
+
+    @nt_credit_card = network_tokenization_credit_card(
+      '4012001038443335',
+      brand: 'visa',
+      month: '12',
+      source: :network_token,
+      payment_cryptogram: 'AgAAAAAAosVKVV7FplLgQRYAAAA=',
+      verification_value: 512
+    )
+  end
+
+  def test_successful_purchase_with_apple_pay
+    response = @gateway.purchase(@amount, @apple_pay_card, @options)
+    assert_success response
+    assert_equal '1', response.params['H9']
+    assert_equal 'Succeeded', response.message
+  end
+
+  def test_successful_purchase_with_google_pay
+    response = @gateway.purchase(@amount, @google_pay_card, @options)
+    assert_success response
+    assert_equal '1', response.params['H9']
+    assert_equal 'Succeeded', response.message
+  end
+
+  def test_successful_purchase_with_network_token
+    response = @gateway.purchase(@amount, @nt_credit_card, @options)
+    assert_success response
+    assert_equal '1', response.params['H9']
+    assert_equal 'Succeeded', response.message
+  end
+
+  def test_transcript_scrubbing_network_tokenization_card
+    transcript = capture_transcript(@gateway) do
+      @gateway.purchase(@amount, @apple_pay_card, @options)
+    end
+    transcript = @gateway.scrub(transcript)
+
+    assert_scrubbed(@apple_pay_card.number, transcript)
+    assert_scrubbed(@apple_pay_card.payment_cryptogram, transcript)
   end
 
   def test_invalid_login
@@ -64,10 +143,71 @@ class RemoteCredoraxTest < Test::Unit::TestCase
     assert_equal 'Succeeded', response.message
   end
 
+  def test_successful_purchase_and_amount_for_isk
+    response = @gateway.purchase(14200, @credit_card, @options.merge(currency: 'ISK'))
+    assert_success response
+    assert_equal '142', response.params['A4']
+    assert_equal 'Succeeded', response.message
+  end
+
   def test_successful_purchase_with_extra_options
     response = @gateway.purchase(@amount, @credit_card, @options.merge(transaction_type: '10'))
     assert_success response
     assert_equal '1', response.params['H9']
+    assert_equal 'Succeeded', response.message
+  end
+
+  def test_successful_purchase_with_aft_fields
+    aft_options = @options.merge(
+      aft: true,
+      sender_ref_number: 'test',
+      sender_fund_source: '01',
+      sender_country_code: 'USA',
+      sender_street_address: 'sender street',
+      sender_city: 'city',
+      sender_state: 'NY',
+      sender_first_name: 'george',
+      sender_last_name: 'smith',
+      recipient_street_address: 'street',
+      recipient_postal_code: '12345',
+      recipient_city: 'chicago',
+      recipient_province_code: '312',
+      recipient_country_code: 'USA',
+      recipient_first_name: 'logan',
+      recipient_last_name: 'bill'
+    )
+
+    response = @gateway.purchase(@amount, @credit_card, aft_options)
+    assert_success response
+    assert_equal '1', response.params['H9']
+    assert_equal 'Succeeded', response.message
+  end
+
+  def test_successful_purchase_with_aft_fields_and_sha256_signing
+    aft_options = @options.merge(
+      aft: true,
+      three_ds_transtype: '10',
+      three_ds_initiate: '03',
+      sender_street_address: "10'th ICENI\/ CLOSE",
+      sender_ref_number: '93347692',
+      sender_last_name: 'test(1)',
+      sender_fund_source: '02',
+      sender_first_name: 'joshua<2>',
+      sender_country_code: 'GB',
+      sender_city: 'SAFFRON WALDEN',
+      recipient_street_address: '10 ICENI CLOSE',
+      recipient_postal_code: 'CB10 1FS',
+      recipient_last_name: 'test',
+      recipient_first_name: 'joshua',
+      recipient_country_code: 'GB',
+      recipient_city: 'SAFFRON WALDEN',
+      mpi_purchase_desc: 'Abc501',
+      billing_descriptor: 'Abc501.com*Abc501UK'
+    )
+
+    @gateway = CredoraxGateway.new(fixtures(:credorax).merge(use_sha256_signing: true))
+    response = @gateway.purchase(@amount, @credit_card, aft_options)
+    assert_success response
     assert_equal 'Succeeded', response.message
   end
 
@@ -93,7 +233,30 @@ class RemoteCredoraxTest < Test::Unit::TestCase
       xid: '00000000000000000501',
       # Having processor-specification enabled in Credorax test account causes 3DS tests to fail without a r1 (processor) parameter.
       processor: 'CREDORAX',
-      three_ds_version: '1.0'
+      three_ds_version: '1.0.2'
+    )
+
+    response = @gateway.purchase(@amount, @fully_auth_card, options)
+    assert_success response
+    assert_equal '1', response.params['H9']
+    assert_equal 'Succeeded', response.message
+  end
+
+  def test_successful_purchase_with_auth_data_via_normalized_3ds1_options
+    version = '1.0.2'
+    eci = '02'
+    cavv = 'jJ81HADVRtXfCBATEp01CJUAAAA='
+    xid = '00000000000000000501'
+
+    options = @options.merge(
+      three_d_secure: {
+        version:,
+        eci:,
+        cavv:,
+        xid:
+      },
+      # Having processor-specification enabled in Credorax test account causes 3DS tests to fail without a r1 (processor) parameter.
+      processor: 'CREDORAX'
     )
 
     response = @gateway.purchase(@amount, @fully_auth_card, options)
@@ -109,6 +272,15 @@ class RemoteCredoraxTest < Test::Unit::TestCase
     assert_equal 'Succeeded', response.message
   end
 
+  def test_successful_purchase_with_3ds_adviser
+    threeds_options = @options.merge(@normalized_3ds_2_options)
+    options = threeds_options.merge(three_ds_initiate: '03', f23: '1')
+    response = @gateway.purchase(@adviser_amount, @three_ds_card, options)
+    assert_success response
+    assert_equal 'Succeeded', response.message
+    assert_equal '01', response.params['SMART_3DS_RESULT']
+  end
+
   def test_successful_moto_purchase
     response = @gateway.purchase(@amount, @three_ds_card, @options.merge(metadata: { manual_entry: true }))
     assert_success response
@@ -118,16 +290,16 @@ class RemoteCredoraxTest < Test::Unit::TestCase
   end
 
   def test_successful_purchase_with_auth_data_via_normalized_3ds2_options
-    version = '2.0'
+    version = '2.2.0'
     eci = '02'
     cavv = 'jJ81HADVRtXfCBATEp01CJUAAAA='
     ds_transaction_id = '97267598-FAE6-48F2-8083-C23433990FBC'
     options = @options.merge(
       three_d_secure: {
-        version: version,
-        eci: eci,
-        cavv: cavv,
-        ds_transaction_id: ds_transaction_id
+        version:,
+        eci:,
+        cavv:,
+        ds_transaction_id:
       },
       # Having processor-specification enabled in Credorax test account causes 3DS tests to fail without a r1 (processor) parameter.
       processor: 'CREDORAX'
@@ -165,10 +337,10 @@ class RemoteCredoraxTest < Test::Unit::TestCase
     ds_transaction_id = '97267598-FAE6-48F2-8083-C23433990FBC'
     options = @options.merge(
       three_d_secure: {
-        version: version,
-        eci: eci,
-        cavv: cavv,
-        ds_transaction_id: ds_transaction_id
+        version:,
+        eci:,
+        cavv:,
+        ds_transaction_id:
       }
     )
 
@@ -189,11 +361,62 @@ class RemoteCredoraxTest < Test::Unit::TestCase
     assert_equal 'Succeeded', capture.message
   end
 
+  def test_successful_authorize_with_transaction_type
+    response = @gateway.authorize(@amount, @credit_card, @options.merge(transaction_type: '10'))
+    assert_success response
+    assert_equal 'Succeeded', response.message
+    assert_equal '1', response.params['H9']
+    assert_equal '10', response.params['A9']
+  end
+
   def test_successful_authorize_with_authorization_details
-    options_with_auth_details = @options.merge({authorization_type: '2', multiple_capture_count: '5' })
+    options_with_auth_details = @options.merge({ authorization_type: '2', multiple_capture_count: '5' })
     response = @gateway.authorize(@amount, @credit_card, options_with_auth_details)
     assert_success response
     assert_equal 'Succeeded', response.message
+    assert response.authorization
+  end
+
+  def test_successful_authorize_with_crypto_currency_type
+    options_with_auth_details = @options.merge({ crypto_currency_type: '7', transaction_type: '6' })
+    response = @gateway.authorize(@amount, @credit_card, options_with_auth_details)
+    assert_success response
+    assert_equal 'Succeeded', response.message
+    assert_equal '6', response.params['A9']
+    assert response.authorization
+  end
+
+  def test_successful_zero_authorize_with_name_inquiry_match
+    extra_options = @options.merge({ account_name_inquiry: true, first_name: 'Art', last_name: 'Vandelay' })
+    response = @gateway.authorize(0, @inquiry_match_card, extra_options)
+    assert_success response
+    assert_equal 'Succeeded', response.message
+    assert_equal '2', response.params['O']
+    assert_equal 'A', response.params['Z26']
+    assert_equal 'A', response.params['Z27']
+    assert_equal 'A', response.params['Z28']
+    assert response.authorization
+  end
+
+  def test_successful_zero_authorize_with_name_inquiry_no_match
+    extra_options = @options.merge({ account_name_inquiry: true, first_name: 'Art', last_name: 'Vandelay' })
+    response = @gateway.authorize(0, @inquiry_no_match_card, extra_options)
+    assert_success response
+    assert_equal 'Succeeded', response.message
+    assert_equal '2', response.params['O']
+    assert_equal 'C', response.params['Z26']
+    assert_equal 'C', response.params['Z27']
+    assert_equal 'C', response.params['Z28']
+    assert response.authorization
+  end
+
+  def test_successful_zero_authorize_with_name_inquiry_unverified
+    extra_options = @options.merge({ account_name_inquiry: true, first_name: 'Art', last_name: 'Vandelay' })
+    response = @gateway.authorize(0, @inquiry_unverified_card, extra_options)
+    assert_success response
+    assert_equal 'Succeeded', response.message
+    assert_equal '2', response.params['O']
+    assert_equal 'U', response.params['Z26']
     assert response.authorization
   end
 
@@ -219,10 +442,10 @@ class RemoteCredoraxTest < Test::Unit::TestCase
     ds_transaction_id = '97267598-FAE6-48F2-8083-C23433990FBC'
     options = @options.merge(
       three_d_secure: {
-        version: version,
-        eci: eci,
-        cavv: cavv,
-        ds_transaction_id: ds_transaction_id
+        version:,
+        eci:,
+        cavv:,
+        ds_transaction_id:
       },
       # Having processor-specification enabled in Credorax test account causes 3DS tests to fail without a r1 (processor) parameter.
       processor: 'CREDORAX'
@@ -246,7 +469,7 @@ class RemoteCredoraxTest < Test::Unit::TestCase
 
     capture = @gateway.capture(0, auth.authorization)
     assert_failure capture
-    assert_equal 'Invalid amount', capture.message
+    assert_equal 'System malfunction', capture.message
   end
 
   def test_successful_purchase_and_void
@@ -297,6 +520,22 @@ class RemoteCredoraxTest < Test::Unit::TestCase
     assert_equal 'Succeeded', refund.message
   end
 
+  def test_successful_refund_with_recipient_fields
+    response = @gateway.purchase(@amount, @credit_card, @options)
+    assert_success response
+
+    refund_options = {
+      recipient_street_address: 'street',
+      recipient_city: 'chicago',
+      recipient_province_code: '312',
+      recipient_country_code: 'USA'
+    }
+
+    refund = @gateway.refund(@amount, response.authorization, refund_options)
+    assert_success refund
+    assert_equal 'Succeeded', refund.message
+  end
+
   def test_successful_refund_and_void
     response = @gateway.purchase(@amount, @credit_card, @options)
     assert_success response
@@ -330,6 +569,19 @@ class RemoteCredoraxTest < Test::Unit::TestCase
     assert_equal '34', referral_cft.params['O']
   end
 
+  def test_successful_referral_cft_with_first_and_last_name
+    response = @gateway.purchase(@amount, @credit_card, @options)
+    assert_success response
+    assert_equal 'Succeeded', response.message
+
+    cft_options = { referral_cft: true, email: 'john.smith@test.com', first_name: 'John', last_name: 'Smith' }
+    referral_cft = @gateway.refund(@amount, response.authorization, cft_options)
+    assert_success referral_cft
+    assert_equal 'Succeeded', referral_cft.message
+    # Confirm that the operation code was `referral_cft`
+    assert_equal '34', referral_cft.params['O']
+  end
+
   def test_failed_referral_cft
     options = @options.merge(@normalized_3ds_2_options)
     response = @gateway.purchase(@amount, @three_ds_card, options)
@@ -343,21 +595,29 @@ class RemoteCredoraxTest < Test::Unit::TestCase
   end
 
   def test_successful_credit
-    response = @gateway.credit(@amount, @credit_card, @options)
+    response = @gateway.credit(@amount, @credit_card, @options.merge(first_name: 'Test', last_name: 'McTest'))
     assert_success response
     assert_equal 'Succeeded', response.message
   end
 
-  def test_failed_credit
+  def test_failed_credit_with_zero_amount
     response = @gateway.credit(0, @declined_card, @options)
     assert_failure response
-    assert_equal 'Invalid amount', response.message
+    assert_equal 'Transaction not allowed for cardholder', response.message
   end
 
   def test_successful_verify
     response = @gateway.verify(@credit_card, @options)
     assert_success response
     assert_equal 'Succeeded', response.message
+  end
+
+  def test_successful_verify_with_0_auth
+    response = @gateway.verify(@credit_card, @options.merge(zero_dollar_auth: true))
+    assert_success response
+    assert_equal 'Succeeded', response.message
+    assert_equal '0', response.params['A4']
+    assert_equal '5', response.params['A9']
   end
 
   def test_failed_verify
@@ -378,7 +638,7 @@ class RemoteCredoraxTest < Test::Unit::TestCase
     assert_success purchase
   end
 
-  def test_purchase_using_stored_credential_recurring_mit
+  def test_failed_purchase_using_stored_credential_recurring_mit
     initial_options = stored_credential_options(:merchant, :recurring, :initial)
     assert purchase = @gateway.purchase(@amount, @credit_card, initial_options)
     assert_success purchase
@@ -386,6 +646,19 @@ class RemoteCredoraxTest < Test::Unit::TestCase
     assert network_transaction_id = purchase.params['Z13']
 
     used_options = stored_credential_options(:merchant, :recurring, id: network_transaction_id)
+    assert purchase = @gateway.purchase(@amount, @credit_card, used_options)
+    assert_failure purchase
+    assert_match 'Parameter g6 is invalid', purchase.message
+  end
+
+  def test_successful_purchase_using_stored_credential_recurring_mit
+    initial_options = stored_credential_options(:merchant, :recurring, :initial)
+    assert purchase = @gateway.purchase(@amount, @credit_card, initial_options)
+    assert_success purchase
+    assert_equal '1', purchase.params['A9']
+    assert initial_network_transaction_id = purchase.params['Z50']
+
+    used_options = stored_credential_options(:merchant, :recurring, id: initial_network_transaction_id)
     assert purchase = @gateway.purchase(@amount, @credit_card, used_options)
     assert_success purchase
   end
@@ -407,7 +680,7 @@ class RemoteCredoraxTest < Test::Unit::TestCase
     assert purchase = @gateway.purchase(@amount, @credit_card, initial_options)
     assert_success purchase
     assert_equal '8', purchase.params['A9']
-    assert network_transaction_id = purchase.params['Z13']
+    assert network_transaction_id = purchase.params['Z50']
 
     used_options = stored_credential_options(:merchant, :installment, id: network_transaction_id)
     assert purchase = @gateway.purchase(@amount, @credit_card, used_options)
@@ -431,7 +704,7 @@ class RemoteCredoraxTest < Test::Unit::TestCase
     assert purchase = @gateway.purchase(@amount, @credit_card, initial_options)
     assert_success purchase
     assert_equal '8', purchase.params['A9']
-    assert network_transaction_id = purchase.params['Z13']
+    assert network_transaction_id = purchase.params['Z50']
 
     used_options = stored_credential_options(:merchant, :unscheduled, id: network_transaction_id)
     assert purchase = @gateway.purchase(@amount, @credit_card, used_options)
@@ -469,11 +742,45 @@ class RemoteCredoraxTest < Test::Unit::TestCase
     assert good_response = @gateway.purchase(@amount, @credit_card, @options.merge(processor: 'CREDORAX'))
     assert_success good_response
     assert_equal 'Succeeded', good_response.message
-    assert_equal 'CREDORAX', good_response.params['Z33']
+    assert_equal 'Shift4', good_response.params['Z33']
 
     # returns a failed response when an invalid processor parameter is sent
     assert bad_response = @gateway.purchase(@amount, @credit_card, @options.merge(processor: 'invalid'))
     assert_failure bad_response
+  end
+
+  def test_purchase_passes_d2_field
+    response = @gateway.purchase(@amount, @credit_card, @options.merge(echo: 'Echo Parameter'))
+    assert_success response
+    assert_equal 'Succeeded', response.message
+    assert_equal 'Echo Parameter', response.params['D2']
+  end
+
+  def test_successful_aft_purchase_with_sender_birth_date
+    aft_options = @options.merge(
+      aft: true,
+      sender_ref_number: 'test',
+      sender_fund_source: '01',
+      sender_country_code: 'USA',
+      sender_street_address: 'sender street',
+      sender_city: 'city',
+      sender_state: 'NY',
+      sender_first_name: 'george',
+      sender_last_name: 'smith',
+      sender_birth_date: '12121212',
+      recipient_street_address: 'street',
+      recipient_postal_code: '12345',
+      recipient_city: 'chicago',
+      recipient_province_code: '312',
+      recipient_country_code: 'USA',
+      recipient_first_name: 'logan',
+      recipient_last_name: 'bill'
+    )
+
+    response = @gateway.purchase(@amount, @credit_card, aft_options)
+    assert_success response
+    assert_equal '1', response.params['H9']
+    assert_equal 'Succeeded', response.message
   end
 
   # #########################################################################
@@ -795,6 +1102,6 @@ class RemoteCredoraxTest < Test::Unit::TestCase
 
   def stored_credential_options(*args, id: nil)
     @options.merge(order_id: generate_unique_id,
-                   stored_credential: stored_credential(*args, id: id))
+                   stored_credential: stored_credential(*args, id:))
   end
 end

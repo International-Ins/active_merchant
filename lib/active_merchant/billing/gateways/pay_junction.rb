@@ -1,5 +1,5 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     # PayJunction Gateway
     #
     # This gateway accepts the following arguments:
@@ -107,7 +107,7 @@ module ActiveMerchant #:nodoc:
       TEST_LOGIN = 'pj-ql-01'
       TEST_PASSWORD = 'pj-ql-01p'
 
-      SUCCESS_CODES = ['00', '85']
+      SUCCESS_CODES = %w[00 85]
       SUCCESS_MESSAGE = 'The transaction was approved.'
 
       FAILURE_MESSAGE = 'The transaction was declined.'
@@ -150,7 +150,7 @@ module ActiveMerchant #:nodoc:
         'AB'  => 'Aborted because of an upstream system error, please try again later.'
       }
 
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover]
+      self.supported_cardtypes = %i[visa master american_express discover]
       self.supported_countries = ['US']
       self.homepage_url = 'http://www.payjunction.com/'
       self.display_name = 'PayJunction'
@@ -165,7 +165,7 @@ module ActiveMerchant #:nodoc:
       # transaction_id that can be used later to postauthorize (capture) the funds.
       def authorize(money, payment_source, options = {})
         parameters = {
-          transaction_amount: amount(money),
+          transaction_amount: amount(money)
         }
 
         add_payment_source(parameters, payment_source)
@@ -178,7 +178,7 @@ module ActiveMerchant #:nodoc:
       # Execute authorization and capture in a single step.
       def purchase(money, payment_source, options = {})
         parameters = {
-          transaction_amount: amount(money),
+          transaction_amount: amount(money)
         }
 
         add_payment_source(parameters, payment_source)
@@ -241,7 +241,7 @@ module ActiveMerchant #:nodoc:
       def recurring(money, payment_source, options = {})
         ActiveMerchant.deprecated RECURRING_DEPRECATION_MESSAGE
 
-        requires!(options, [:periodicity, :monthly, :weekly, :daily], :payments)
+        requires!(options, %i[periodicity monthly weekly daily], :payments)
 
         periodic_type =
           case options[:periodicity]
@@ -337,7 +337,10 @@ module ActiveMerchant #:nodoc:
 
         response = parse(ssl_post(url, post_data(action, parameters)))
 
-        Response.new(successful?(response), message_from(response), response,
+        Response.new(
+          successful?(response),
+          message_from(response),
+          response,
           test: test?,
           authorization: response[:transaction_id] || parameters[:transaction_id]
         )
@@ -367,7 +370,7 @@ module ActiveMerchant #:nodoc:
         params[:version] = API_VERSION
         params[:transaction_type] = action
 
-        params.reject { |k, v| v.blank? }.collect { |k, v| "dc_#{k}=#{CGI.escape(v.to_s)}" }.join('&')
+        params.reject { |_k, v| v.blank? }.collect { |k, v| "dc_#{k}=#{CGI.escape(v.to_s)}" }.join('&')
       end
 
       def parse(body)

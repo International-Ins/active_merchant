@@ -1,7 +1,7 @@
 require 'rexml/document'
 
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     # To learn more about the Moneris gateway, please contact
     # eselectplus@moneris.com for a copy of their integration guide. For
     # information on remote testing, please see "Test Environment Penny Value
@@ -9,11 +9,13 @@ module ActiveMerchant #:nodoc:
     # Response Values", available at Moneris' {eSelect Plus Documentation
     # Centre}[https://www3.moneris.com/connect/en/documents/index.html].
     class MonerisGateway < Gateway
+      WALLETS = %w(APP GPP)
+
       self.test_url = 'https://esqa.moneris.com/gateway2/servlet/MpgRequest'
       self.live_url = 'https://www3.moneris.com/gateway2/servlet/MpgRequest'
 
       self.supported_countries = ['CA']
-      self.supported_cardtypes = [:visa, :master, :american_express, :diners_club, :discover]
+      self.supported_cardtypes = %i[visa master american_express diners_club discover]
       self.homepage_url = 'http://www.moneris.com/'
       self.display_name = 'Moneris'
 
@@ -47,18 +49,20 @@ module ActiveMerchant #:nodoc:
         post = {}
         add_payment_source(post, creditcard_or_datakey, options)
         post[:amount] = amount(money)
-        post[:order_id] = options[:order_id]
+        post[:order_id] = format_order_id(post[:wallet_indicator], options[:order_id])
         post[:address] = options[:billing_address] || options[:address]
         post[:crypt_type] = options[:crypt_type] || @options[:crypt_type]
+        add_external_mpi_fields(post, options)
         add_stored_credential(post, options)
-        action = if post[:cavv]
+        add_cust_id(post, options)
+        action = if post[:cavv] || options[:three_d_secure]
                    'cavv_preauth'
                  elsif post[:data_key].blank?
                    'preauth'
                  else
                    'res_preauth_cc'
                  end
-        commit(action, post)
+        commit(action, post, options)
       end
 
       # This action verifies funding on a customer's card and readies them for
@@ -70,18 +74,20 @@ module ActiveMerchant #:nodoc:
         post = {}
         add_payment_source(post, creditcard_or_datakey, options)
         post[:amount] = amount(money)
-        post[:order_id] = options[:order_id]
+        post[:order_id] = format_order_id(post[:wallet_indicator], options[:order_id])
         post[:address] = options[:billing_address] || options[:address]
         post[:crypt_type] = options[:crypt_type] || @options[:crypt_type]
+        add_external_mpi_fields(post, options)
         add_stored_credential(post, options)
-        action = if post[:cavv]
+        add_cust_id(post, options)
+        action = if post[:cavv] || options[:three_d_secure]
                    'cavv_purchase'
                  elsif post[:data_key].blank?
                    'purchase'
                  else
                    'res_purchase_cc'
                  end
-        commit(action, post)
+        commit(action, post, options)
       end
 
       # This method retrieves locked funds from a customer's account (from a
@@ -133,7 +139,7 @@ module ActiveMerchant #:nodoc:
         commit 'refund', crediting_params(authorization, amount: amount(money))
       end
 
-      def verify(credit_card, options={})
+      def verify(credit_card, options = {})
         requires!(options, :order_id)
         post = {}
         add_payment_source(post, credit_card, options)
@@ -203,6 +209,21 @@ module ActiveMerchant #:nodoc:
         sprintf('%.4i', creditcard.year)[-2..-1] + sprintf('%.2i', creditcard.month)
       end
 
+      def add_external_mpi_fields(post, options)
+        # See these pages:
+        # https://developer.moneris.com/livedemo/3ds2/cavv_purchase/tool/php
+        # https://developer.moneris.com/livedemo/3ds2/cavv_preauth/guide/php
+        return unless options[:three_d_secure]
+
+        three_d_secure_options = options[:three_d_secure]
+
+        post[:threeds_version] = three_d_secure_options[:version]
+        post[:crypt_type] = three_d_secure_options.dig(:eci)&.to_s&.sub!(/^0/, '')
+        post[:cavv] = three_d_secure_options[:cavv]
+        post[:threeds_server_trans_id] = three_d_secure_options[:three_ds_server_trans_id]
+        post[:ds_trans_id] = three_d_secure_options[:ds_transaction_id]
+      end
+
       def add_payment_source(post, payment_method, options)
         if payment_method.is_a?(String)
           post[:data_key] = payment_method
@@ -227,6 +248,10 @@ module ActiveMerchant #:nodoc:
         post[:issuer_id] = options[:issuer_id] if options[:issuer_id]
         post[:payment_indicator] = options[:payment_indicator] if options[:payment_indicator]
         post[:payment_information] = options[:payment_information] if options[:payment_information]
+      end
+
+      def add_cust_id(post, options)
+        post[:cust_id] = options[:cust_id] if options[:cust_id]
       end
 
       def add_stored_credential(post, options)
@@ -291,20 +316,23 @@ module ActiveMerchant #:nodoc:
         end
       end
 
-      def commit(action, parameters = {})
+      def commit(action, parameters = {}, options = {})
+        threed_ds_transaction = options[:three_d_secure].present?
+
         data = post_data(action, parameters)
         url = test? ? self.test_url : self.live_url
         raw = ssl_post(url, data)
         response = parse(raw)
 
         Response.new(
-          successful?(response),
+          successful?(action, response, threed_ds_transaction),
           message_from(response[:message]),
           response,
           test: test?,
-          avs_result: {code: response[:avs_result_code]},
+          avs_result: { code: response[:avs_result_code] },
           cvv_result: response[:cvd_result_code] && response[:cvd_result_code][-1, 1],
-          authorization: authorization_from(response))
+          authorization: authorization_from(response)
+        )
       end
 
       # Generates a Moneris authorization string of the form 'trans_id;receipt_id'.
@@ -313,8 +341,16 @@ module ActiveMerchant #:nodoc:
       end
 
       # Tests for a successful response from Moneris' servers
-      def successful?(response)
-        response[:response_code] &&
+      def successful?(action, response, threed_ds_transaction = false)
+        # See 9.4 CAVV Result Codes in https://developer.moneris.com/livedemo/3ds2/reference/guide/php
+        cavv_accepted = if threed_ds_transaction
+                          response[:cavv_result_code] && response[:cavv_result_code] == '2'
+                        else
+                          true
+                        end
+
+        cavv_accepted &&
+          response[:response_code] &&
           response[:complete] &&
           (0..49).cover?(response[:response_code].to_i)
       end
@@ -403,10 +439,23 @@ module ActiveMerchant #:nodoc:
       end
 
       def wallet_indicator(token_source)
-        return 'APP' if token_source == 'apple_pay'
-        return 'ANP' if token_source == 'android_pay'
+        return {
+          'apple_pay' => 'APP',
+          'google_pay' => 'GPP',
+          'android_pay' => 'ANP'
+        }[token_source]
+      end
 
-        nil
+      def format_order_id(wallet_indicator_code, order_id = nil)
+        # Truncate (max 100 characters) order id for
+        # google pay and apple pay (specific wallets / token sources)
+        return truncate_order_id(order_id) if WALLETS.include?(wallet_indicator_code)
+
+        order_id
+      end
+
+      def truncate_order_id(order_id = nil)
+        order_id.present? ? order_id[0, 100] : SecureRandom.alphanumeric(100)
       end
 
       def message_from(message)
@@ -417,27 +466,27 @@ module ActiveMerchant #:nodoc:
 
       def actions
         {
-          'purchase' => [:order_id, :cust_id, :amount, :pan, :expdate, :crypt_type, :avs_info, :cvd_info, :track2, :pos_code, :cof_info],
-          'preauth' => [:order_id, :cust_id, :amount, :pan, :expdate, :crypt_type, :avs_info, :cvd_info, :track2, :pos_code, :cof_info],
+          'purchase' => %i[order_id cust_id amount pan expdate crypt_type avs_info cvd_info track2 pos_code cof_info],
+          'preauth' => %i[order_id cust_id amount pan expdate crypt_type avs_info cvd_info track2 pos_code cof_info],
           'command' => [:order_id],
-          'refund' => [:order_id, :amount, :txn_number, :crypt_type],
-          'indrefund' => [:order_id, :cust_id, :amount, :pan, :expdate, :crypt_type],
-          'completion' => [:order_id, :comp_amount, :txn_number, :crypt_type],
-          'purchasecorrection' => [:order_id, :txn_number, :crypt_type],
-          'cavv_preauth' => [:order_id, :cust_id, :amount, :pan, :expdate, :cavv, :crypt_type, :wallet_indicator],
-          'cavv_purchase' => [:order_id, :cust_id, :amount, :pan, :expdate, :cavv, :crypt_type, :wallet_indicator],
-          'card_verification' => [:order_id, :cust_id, :pan, :expdate, :crypt_type, :avs_info, :cvd_info, :cof_info],
-          'transact' => [:order_id, :cust_id, :amount, :pan, :expdate, :crypt_type],
+          'refund' => %i[order_id amount txn_number crypt_type],
+          'indrefund' => %i[order_id cust_id amount pan expdate crypt_type],
+          'completion' => %i[order_id comp_amount txn_number crypt_type],
+          'purchasecorrection' => %i[order_id txn_number crypt_type],
+          'cavv_preauth' => %i[order_id cust_id amount pan expdate cavv crypt_type wallet_indicator threeds_version threeds_server_trans_id ds_trans_id],
+          'cavv_purchase' => %i[order_id cust_id amount pan expdate cavv crypt_type wallet_indicator threeds_version threeds_server_trans_id ds_trans_id],
+          'card_verification' => %i[order_id cust_id pan expdate crypt_type avs_info cvd_info cof_info],
+          'transact' => %i[order_id cust_id amount pan expdate crypt_type],
           'Batchcloseall' => [],
           'opentotals' => [:ecr_number],
           'batchclose' => [:ecr_number],
-          'res_add_cc' => [:pan, :expdate, :crypt_type, :avs_info, :cof_info],
-          'res_temp_add' => [:pan, :expdate, :crypt_type, :duration],
+          'res_add_cc' => %i[pan expdate crypt_type avs_info cof_info],
+          'res_temp_add' => %i[pan expdate crypt_type duration],
           'res_delete' => [:data_key],
-          'res_update_cc' => [:data_key, :pan, :expdate, :crypt_type, :avs_info, :cof_info],
-          'res_purchase_cc' => [:data_key, :order_id, :cust_id, :amount, :crypt_type, :cof_info],
-          'res_preauth_cc' => [:data_key, :order_id, :cust_id, :amount, :crypt_type, :cof_info],
-          'res_card_verification_cc' => [:order_id, :data_key, :expdate, :crypt_type, :cof_info]
+          'res_update_cc' => %i[data_key pan expdate crypt_type avs_info cof_info],
+          'res_purchase_cc' => %i[data_key order_id cust_id amount crypt_type cof_info],
+          'res_preauth_cc' => %i[data_key order_id cust_id amount crypt_type cof_info],
+          'res_card_verification_cc' => %i[order_id data_key expdate crypt_type cof_info]
         }
       end
     end

@@ -1,10 +1,10 @@
 require 'rexml/document'
 
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class EfsnetGateway < Gateway
       self.supported_countries = ['US']
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover]
+      self.supported_cardtypes = %i[visa master american_express discover]
       self.homepage_url = 'http://www.concordefsnet.com/'
       self.display_name = 'Efsnet'
 
@@ -53,8 +53,8 @@ module ActiveMerchant #:nodoc:
 
       def void(identification, options = {})
         requires!(options, :order_id)
-        original_transaction_id, _ = identification.split(';')
-        commit(:void_transaction, {reference_number: format_reference_number(options[:order_id]), transaction_id: original_transaction_id})
+        original_transaction_id, = identification.split(';')
+        commit(:void_transaction, { reference_number: format_reference_number(options[:order_id]), transaction_id: original_transaction_id })
       end
 
       def voice_authorize(money, authorization_code, creditcard, options = {})
@@ -83,8 +83,8 @@ module ActiveMerchant #:nodoc:
         {
           reference_number: format_reference_number(options[:order_id]),
           transaction_amount: amount(money),
-          original_transaction_amount: original_transaction_amount,
-          original_transaction_id: original_transaction_id,
+          original_transaction_amount:,
+          original_transaction_id:,
           client_ip_address: options[:ip]
         }
       end
@@ -145,7 +145,10 @@ module ActiveMerchant #:nodoc:
       def commit(action, parameters)
         response = parse(ssl_post(test? ? self.test_url : self.live_url, post_data(action, parameters), 'Content-Type' => 'text/xml'))
 
-        Response.new(success?(response), message_from(response[:result_message]), response,
+        Response.new(
+          success?(response),
+          message_from(response[:result_message]),
+          response,
           test: test?,
           authorization: authorization_from(response, parameters),
           avs_result: { code: response[:avs_response_code] },
@@ -209,7 +212,7 @@ module ActiveMerchant #:nodoc:
         credit_card_refund: %w(ReferenceNumber TransactionAmount OriginalTransactionAmount OriginalTransactionID ClientIpAddress),
         void_transaction: %w(ReferenceNumber TransactionID),
         credit_card_settle: %w(ReferenceNumber TransactionAmount OriginalTransactionAmount OriginalTransactionID ClientIpAddress),
-        system_check: %w(SystemCheck),
+        system_check: %w(SystemCheck)
       }
     end
   end

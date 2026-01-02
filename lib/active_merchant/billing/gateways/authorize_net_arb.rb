@@ -1,5 +1,5 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     # For more information on the Authorize.Net Gateway please visit their {Integration Center}[http://developer.authorize.net/]
     #
     # The login and password are not the username and password you use to
@@ -31,8 +31,8 @@ module ActiveMerchant #:nodoc:
 
       self.default_currency = 'USD'
 
-      self.supported_countries = ['US', 'CA', 'GB']
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :diners_club, :jcb]
+      self.supported_countries = %w[US CA GB]
+      self.supported_cardtypes = %i[visa master american_express discover diners_club jcb]
       self.homepage_url = 'http://www.authorize.net/'
       self.display_name = 'Authorize.Net'
 
@@ -82,9 +82,9 @@ module ActiveMerchant #:nodoc:
       #   +:interval => { :unit => :months, :length => 3 }+ (REQUIRED)
       # * <tt>:duration</tt> -- A hash containing keys for the <tt>:start_date</tt> the subscription begins (also the date the
       #   initial billing occurs) and the total number of billing <tt>:occurrences</tt> or payments for the subscription. (REQUIRED)
-      def recurring(money, creditcard, options={})
+      def recurring(money, creditcard, options = {})
         requires!(options, :interval, :duration, :billing_address)
-        requires!(options[:interval], :length, [:unit, :days, :months])
+        requires!(options[:interval], :length, %i[unit days months])
         requires!(options[:duration], :start_date, :occurrences)
         requires!(options[:billing_address], :first_name, :last_name)
 
@@ -110,7 +110,7 @@ module ActiveMerchant #:nodoc:
       #
       # * <tt>:subscription_id</tt> -- A string containing the <tt>:subscription_id</tt> of the recurring payment already in place
       #   for a given credit card. (REQUIRED)
-      def update_recurring(options={})
+      def update_recurring(options = {})
         requires!(options, :subscription_id)
         request = build_recurring_request(:update, options)
         recurring_commit(:update, request)
@@ -126,7 +126,7 @@ module ActiveMerchant #:nodoc:
       # * <tt>subscription_id</tt> -- A string containing the +subscription_id+ of the recurring payment already in place
       #   for a given credit card. (REQUIRED)
       def cancel_recurring(subscription_id)
-        request = build_recurring_request(:cancel, subscription_id: subscription_id)
+        request = build_recurring_request(:cancel, subscription_id:)
         recurring_commit(:cancel, request)
       end
 
@@ -139,7 +139,7 @@ module ActiveMerchant #:nodoc:
       # * <tt>subscription_id</tt> -- A string containing the +subscription_id+ of the recurring payment already in place
       #   for a given credit card. (REQUIRED)
       def status_recurring(subscription_id)
-        request = build_recurring_request(:status, subscription_id: subscription_id)
+        request = build_recurring_request(:status, subscription_id:)
         recurring_commit(:status, request)
       end
 
@@ -208,9 +208,9 @@ module ActiveMerchant #:nodoc:
           # The amount to be billed to the customer
           # for each payment in the subscription
           xml.tag!('amount', amount(options[:amount])) if options[:amount]
-          if trial = options[:trial]
+          if trial = options[:trial] && (trial[:amount])
             # The amount to be charged for each payment during a trial period (conditional)
-            xml.tag!('trialAmount', amount(trial[:amount])) if trial[:amount]
+            xml.tag!('trialAmount', amount(trial[:amount]))
           end
           # Contains either the customer’s credit card
           # or bank account payment information
@@ -260,9 +260,9 @@ module ActiveMerchant #:nodoc:
           # Contains information about the interval of time between payments
           add_interval(xml, options)
           add_duration(xml, options)
-          if trial = options[:trial]
+          if trial = options[:trial] && (trial[:occurrences])
             # Number of billing occurrences or payments in the trial period (optional)
-            xml.tag!('trialOccurrences', trial[:occurrences]) if trial[:occurrences]
+            xml.tag!('trialOccurrences', trial[:occurrences])
           end
         end
       end
@@ -393,7 +393,10 @@ module ActiveMerchant #:nodoc:
         test_mode = test? || message =~ /Test Mode/
         success = response[:result_code] == 'Ok'
 
-        Response.new(success, message, response,
+        Response.new(
+          success,
+          message,
+          response,
           test: test_mode,
           authorization: response[:subscription_id]
         )

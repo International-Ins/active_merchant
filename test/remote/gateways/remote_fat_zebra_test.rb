@@ -9,7 +9,7 @@ class RemoteFatZebraTest < Test::Unit::TestCase
     @declined_card = credit_card('4557012345678902')
 
     @options = {
-      order_id: rand(100000).to_s,
+      order_id: generate_unique_id,
       ip: '1.2.3.4'
     }
   end
@@ -118,8 +118,10 @@ class RemoteFatZebraTest < Test::Unit::TestCase
 
   def test_successful_void_refund
     purchase = @gateway.purchase(@amount, @credit_card, @options)
+    assert_success purchase
 
     refund = @gateway.refund(@amount, purchase.authorization, @options)
+    assert_success refund
 
     assert response = @gateway.void(refund.authorization, @options)
     assert_success response
@@ -188,6 +190,24 @@ class RemoteFatZebraTest < Test::Unit::TestCase
     assert_match %r{Extra/cavv is required for SLI 05}, response.message
   end
 
+  def test_successful_purchase_with_3DS_information_using_standard_fields
+    assert response = @gateway.purchase(@amount, @credit_card, @options.merge(three_d_secure: { cavv: 'MDRjN2MxZTAxYjllNTBkNmM2MTA=', xid: 'MGVmMmNlMzI4NjAyOWU2ZDgwNTQ=', eci: '05' }))
+    assert_success response
+    assert_equal 'Approved', response.message
+  end
+
+  def test_failed_purchase_with_incomplete_3DS_information_using_standard_fields
+    assert response = @gateway.purchase(@amount, @credit_card, @options.merge(three_d_secure: { xid: 'MGVmMmNlMzI4NjAyOWU2ZDgwNTQ=', eci: '05' }))
+    assert_failure response
+    assert_match %r{Extra/cavv is required for SLI 05}, response.message
+  end
+
+  def test_successful_purchase_with_card_on_file_information
+    assert response = @gateway.purchase(@amount, @credit_card, @options.merge(recurring: true, extra: { card_on_file: true, auth_reason: 'U' }))
+    assert_success response
+    assert_equal 'Approved', response.message
+  end
+
   def test_invalid_login
     gateway = FatZebraGateway.new(
       username: 'invalid',
@@ -206,5 +226,35 @@ class RemoteFatZebraTest < Test::Unit::TestCase
 
     assert_scrubbed(@credit_card.number, transcript)
     assert_scrubbed(@credit_card.verification_value, transcript)
+  end
+
+  def test_successful_purchase_with_3DS
+    @options[:three_d_secure] = {
+      version: '2.0',
+      cavv: '3q2+78r+ur7erb7vyv66vv\/\/\/\/8=',
+      eci: '05',
+      ds_transaction_id: 'f25084f0-5b16-4c0a-ae5d-b24808a95e4b',
+      enrolled: 'true',
+      authentication_response_status: 'Y'
+    }
+
+    assert response = @gateway.purchase(@amount, @credit_card, @options)
+    assert_success response
+    assert_equal 'Approved', response.message
+  end
+
+  def test_failed_purchase_with_3DS
+    @options[:three_d_secure] = {
+      version: '3.0',
+      cavv: '3q2+78r+ur7erb7vyv66vv\/\/\/\/8=',
+      eci: '05',
+      ds_transaction_id: 'ODUzNTYzOTcwODU5NzY3Qw==',
+      enrolled: 'true',
+      authentication_response_status: 'Y'
+    }
+
+    assert response = @gateway.purchase(@amount, @credit_card, @options)
+    assert_failure response
+    assert_match(/version is not valid/, response.message)
   end
 end

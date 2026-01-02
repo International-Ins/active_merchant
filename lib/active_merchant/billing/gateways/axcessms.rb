@@ -1,5 +1,5 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class AxcessmsGateway < Gateway
       self.test_url = 'https://test.ctpe.io/payment/ctpe'
       self.live_url = 'https://ctpe.io/payment/ctpe'
@@ -8,7 +8,7 @@ module ActiveMerchant #:nodoc:
                                     GI GR HR HU IE IL IM IS IT LI LT LU LV MC MT MX NL
                                     NO PL PT RO RU SE SI SK TR US VA)
 
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :jcb, :maestro]
+      self.supported_cardtypes = %i[visa master american_express discover jcb maestro]
 
       self.homepage_url = 'http://www.axcessms.com/'
       self.display_name = 'Axcess MS'
@@ -23,33 +23,33 @@ module ActiveMerchant #:nodoc:
       PAYMENT_CODE_REFUND = 'CC.RF'
       PAYMENT_CODE_REBILL = 'CC.RB'
 
-      def initialize(options={})
+      def initialize(options = {})
         requires!(options, :sender, :login, :password, :channel)
         super
       end
 
-      def purchase(money, payment, options={})
+      def purchase(money, payment, options = {})
         payment_code = payment.respond_to?(:number) ? PAYMENT_CODE_DEBIT : PAYMENT_CODE_REBILL
         commit(payment_code, money, payment, options)
       end
 
-      def authorize(money, authorization, options={})
+      def authorize(money, authorization, options = {})
         commit(PAYMENT_CODE_PREAUTHORIZATION, money, authorization, options)
       end
 
-      def capture(money, authorization, options={})
+      def capture(money, authorization, options = {})
         commit(PAYMENT_CODE_CAPTURE, money, authorization, options)
       end
 
-      def refund(money, authorization, options={})
+      def refund(money, authorization, options = {})
         commit(PAYMENT_CODE_REFUND, money, authorization, options)
       end
 
-      def void(authorization, options={})
+      def void(authorization, options = {})
         commit(PAYMENT_CODE_REVERSAL, nil, authorization, options)
       end
 
-      def verify(credit_card, options={})
+      def verify(credit_card, options = {})
         MultiResponse.run(:use_first_response) do |r|
           r.process { authorize(100, credit_card, options) }
           r.process(:ignore_result) { void(r.authorization, options) }
@@ -71,8 +71,11 @@ module ActiveMerchant #:nodoc:
         message = "#{response[:reason]} - #{response[:return]}"
         authorization = response[:unique_id]
 
-        Response.new(success, message, response,
-          authorization: authorization,
+        Response.new(
+          success,
+          message,
+          response,
+          authorization:,
           test: (response[:mode] != 'LIVE')
         )
       end

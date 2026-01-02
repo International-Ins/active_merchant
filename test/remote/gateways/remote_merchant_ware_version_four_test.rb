@@ -4,7 +4,7 @@ class RemoteMerchantWareVersionFourTest < Test::Unit::TestCase
   def setup
     @gateway = MerchantWareVersionFourGateway.new(fixtures(:merchant_ware_version_four))
     @amount = rand(200..1199)
-    @credit_card = credit_card('5424180279791732', {brand: 'master'})
+    @credit_card = credit_card('5424180279791732', { brand: 'master' })
     @declined_card = credit_card('1234567890123')
 
     @options = {
@@ -69,9 +69,11 @@ class RemoteMerchantWareVersionFourTest < Test::Unit::TestCase
     assert_success purchase
     assert purchase.authorization
 
-    assert reference_purchase = @gateway.purchase(@amount,
+    assert reference_purchase = @gateway.purchase(
+      @amount,
       purchase.authorization,
-      @reference_purchase_options)
+      @reference_purchase_options
+    )
     assert_success reference_purchase
     assert_not_nil reference_purchase.authorization
   end

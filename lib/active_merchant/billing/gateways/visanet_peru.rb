@@ -1,5 +1,5 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class VisanetPeruGateway < Gateway
       include Empty
       self.display_name = 'VisaNet Peru Gateway'
@@ -8,24 +8,24 @@ module ActiveMerchant #:nodoc:
       self.test_url = 'https://devapi.vnforapps.com/api.tokenization/api/v2/merchant'
       self.live_url = 'https://api.vnforapps.com/api.tokenization/api/v2/merchant'
 
-      self.supported_countries = ['US', 'PE']
+      self.supported_countries = %w[US PE]
       self.default_currency = 'PEN'
       self.money_format = :dollars
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover]
+      self.supported_cardtypes = %i[visa master american_express discover]
 
-      def initialize(options={})
+      def initialize(options = {})
         requires!(options, :access_key_id, :secret_access_key, :merchant_id)
         super
       end
 
-      def purchase(amount, payment_method, options={})
+      def purchase(amount, payment_method, options = {})
         MultiResponse.run() do |r|
           r.process { authorize(amount, payment_method, options) }
           r.process { capture(amount, r.authorization, options) }
         end
       end
 
-      def authorize(amount, payment_method, options={})
+      def authorize(amount, payment_method, options = {})
         params = {}
 
         add_invoice(params, amount, options)
@@ -37,20 +37,20 @@ module ActiveMerchant #:nodoc:
         commit('authorize', params, options)
       end
 
-      def capture(amount, authorization, options={})
+      def capture(amount, authorization, options = {})
         params = {}
         options[:id_unico] = split_authorization(authorization)[1]
         add_auth_order_id(params, authorization, options)
         commit('deposit', params, options)
       end
 
-      def void(authorization, options={})
+      def void(authorization, options = {})
         params = {}
         add_auth_order_id(params, authorization, options)
         commit('void', params, options)
       end
 
-      def refund(amount, authorization, options={})
+      def refund(amount, authorization, options = {})
         params = {}
         params[:amount] = amount(amount) if amount
         add_auth_order_id(params, authorization, options)
@@ -65,7 +65,7 @@ module ActiveMerchant #:nodoc:
         commit('refund', params, options)
       end
 
-      def verify(credit_card, options={})
+      def verify(credit_card, options = {})
         MultiResponse.run(:use_first_response) do |r|
           r.process { authorize(100, credit_card, options) }
           r.process(:ignore_result) { void(r.authorization, options) }
@@ -85,20 +85,20 @@ module ActiveMerchant #:nodoc:
 
       private
 
-      CURRENCY_CODES = Hash.new { |h, k| raise ArgumentError.new("Unsupported currency: #{k}") }
+      CURRENCY_CODES = Hash.new { |_h, k| raise ArgumentError.new("Unsupported currency: #{k}") }
       CURRENCY_CODES['USD'] = 840
       CURRENCY_CODES['PEN'] = 604
 
       def add_invoice(params, money, options)
-        # Visanet Peru expects a 9-digit numeric purchaseNumber
-        params[:purchaseNumber] = (SecureRandom.random_number(900_000_000) + 100_000_000).to_s
+        # Visanet Peru expects a 12-digit alphanumeric purchaseNumber
+        params[:purchaseNumber] = generate_purchase_number_stamp
         params[:externalTransactionId] = options[:order_id]
         params[:amount] = amount(money)
         params[:currencyId] = CURRENCY_CODES[options[:currency] || currency(money)]
       end
 
       def add_auth_order_id(params, authorization, options)
-        purchase_number, _ = split_authorization(authorization)
+        purchase_number, = split_authorization(authorization)
         params[:purchaseNumber] = purchase_number
         params[:externalTransactionId] = options[:order_id]
       end
@@ -134,7 +134,7 @@ module ActiveMerchant #:nodoc:
         params[:externalReferenceId] = params.delete(:externalTransactionId)
         _, transaction_id = split_authorization(authorization)
 
-        options.update(transaction_id: transaction_id)
+        options.update(transaction_id:)
         params[:ruc] = options[:ruc]
       end
 
@@ -142,9 +142,13 @@ module ActiveMerchant #:nodoc:
         authorization.split('|')
       end
 
-      def commit(action, params, options={})
+      def generate_purchase_number_stamp
+        rand(('9' * 12).to_i).to_s.center(12, rand(9).to_s)
+      end
+
+      def commit(action, params, options = {})
         raw_response = ssl_request(method(action), url(action, params, options), params.to_json, headers)
-        response = parse(raw_response)
+        response = parse(raw_response).merge('purchaseNumber' => params[:purchaseNumber])
       rescue ResponseError => e
         raw_response = e.response.body
         response_error(raw_response, options, action)
@@ -168,7 +172,7 @@ module ActiveMerchant #:nodoc:
         }
       end
 
-      def url(action, params, options={})
+      def url(action, params, options = {})
         if action == 'authorize'
           "#{base_url}/#{@options[:merchant_id]}"
         elsif action == 'refund'

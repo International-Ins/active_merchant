@@ -1,5 +1,5 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class WorldpayOnlinePaymentsGateway < Gateway
       self.live_url = 'https://api.worldpay.com/v1/'
 
@@ -8,19 +8,19 @@ module ActiveMerchant #:nodoc:
       self.money_format = :cents
 
       self.supported_countries = %w(HK US GB BE CH CZ DE DK ES FI FR GR HU IE IT LU MT NL NO PL PT SE SG TR)
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :jcb, :maestro]
+      self.supported_cardtypes = %i[visa master american_express discover jcb maestro]
 
       self.homepage_url = 'http://online.worldpay.com'
       self.display_name = 'Worldpay Online Payments'
 
-      def initialize(options={})
+      def initialize(options = {})
         requires!(options, :client_key, :service_key)
         @client_key = options[:client_key]
         @service_key = options[:service_key]
         super
       end
 
-      def authorize(money, credit_card, options={})
+      def authorize(money, credit_card, options = {})
         response = create_token(true, credit_card.first_name + ' ' + credit_card.last_name, credit_card.month, credit_card.year, credit_card.number, credit_card.verification_value)
         if response.success?
           options[:authorizeOnly] = true
@@ -30,11 +30,12 @@ module ActiveMerchant #:nodoc:
         response
       end
 
-      def capture(money, authorization, options={})
+      def capture(money, authorization, options = {})
         if authorization
-          commit(:post, "orders/#{CGI.escape(authorization)}/capture", {'captureAmount' => money}, options, 'capture')
+          commit(:post, "orders/#{CGI.escape(authorization)}/capture", { 'captureAmount' => money }, options, 'capture')
         else
-          Response.new(false,
+          Response.new(
+            false,
             'FAILED',
             'FAILED',
             test: test?,
@@ -46,7 +47,7 @@ module ActiveMerchant #:nodoc:
         end
       end
 
-      def purchase(money, credit_card, options={})
+      def purchase(money, credit_card, options = {})
         response = create_token(true, credit_card.first_name + ' ' + credit_card.last_name, credit_card.month, credit_card.year, credit_card.number, credit_card.verification_value)
         if response.success?
           post = create_post_for_auth_or_purchase(response.authorization, money, options)
@@ -55,18 +56,18 @@ module ActiveMerchant #:nodoc:
         response
       end
 
-      def refund(money, orderCode, options={})
-        obj = money ? {'refundAmount' => money} : {}
+      def refund(money, orderCode, options = {})
+        obj = money ? { 'refundAmount' => money } : {}
         commit(:post, "orders/#{CGI.escape(orderCode)}/refund", obj, options, 'refund')
       end
 
-      def void(orderCode, options={})
+      def void(orderCode, options = {})
         response = commit(:delete, "orders/#{CGI.escape(orderCode)}", nil, options, 'void')
         response = refund(nil, orderCode) if !response.success? && (response.params && response.params['customCode'] != 'ORDER_NOT_FOUND')
         response
       end
 
-      def verify(credit_card, options={})
+      def verify(credit_card, options = {})
         authorize(0, credit_card, options)
       end
 
@@ -85,8 +86,7 @@ module ActiveMerchant #:nodoc:
           },
           'clientKey' => @client_key
         }
-        token_response = commit(:post, 'tokens', obj, {'Authorization' => @service_key}, 'token')
-        token_response
+        commit(:post, 'tokens', obj, { 'Authorization' => @service_key }, 'token')
       end
 
       def create_post_for_auth_or_purchase(token, money, options)
@@ -121,13 +121,13 @@ module ActiveMerchant #:nodoc:
           'Content-Type' => 'application/json',
           'User-Agent' => "Worldpay/v1 ActiveMerchantBindings/#{ActiveMerchant::VERSION}",
           'X-Worldpay-Client-User-Agent' => user_agent,
-          'X-Worldpay-Client-User-Metadata' => {ip: options[:ip]}.to_json
+          'X-Worldpay-Client-User-Metadata' => { ip: options[:ip] }.to_json
         }
         headers['Authorization'] = options['Authorization'] if options['Authorization']
         headers
       end
 
-      def commit(method, url, parameters=nil, options = {}, type = false)
+      def commit(method, url, parameters = nil, options = {}, type = false)
         raw_response = response = nil
         success = false
         begin
@@ -135,7 +135,10 @@ module ActiveMerchant #:nodoc:
 
           raw_response = ssl_request(method, self.live_url + url, json, headers(options))
 
-          if raw_response != ''
+          if raw_response == ''
+            success = true
+            response = {}
+          else
             response = parse(raw_response)
             if type == 'token'
               success = response.key?('token')
@@ -152,9 +155,6 @@ module ActiveMerchant #:nodoc:
                 end
               end
             end
-          else
-            success = true
-            response = {}
           end
         rescue ResponseError => e
           raw_response = e.response.body
@@ -171,11 +171,12 @@ module ActiveMerchant #:nodoc:
           authorization = response['message']
         end
 
-        Response.new(success,
+        Response.new(
+          success,
           success ? 'SUCCESS' : response['message'],
           response,
           test: test?,
-          authorization: authorization,
+          authorization:,
           avs_result: {},
           cvv_result: {},
           error_code: success ? nil : response['customCode']

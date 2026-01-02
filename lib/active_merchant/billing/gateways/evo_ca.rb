@@ -1,5 +1,5 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     # === EVO Canada payment gateway.
     #
     # EVO returns two different identifiers for most transactions, the
@@ -36,7 +36,7 @@ module ActiveMerchant #:nodoc:
       self.live_url = 'https://secure.evoepay.com/api/transact.php'
 
       self.supported_countries  = ['CA']
-      self.supported_cardtypes  = [:visa, :master, :american_express, :jcb, :discover]
+      self.supported_cardtypes  = %i[visa master american_express jcb discover]
       self.money_format         = :dollars
       self.homepage_url         = 'http://www.evocanada.com/'
       self.display_name         = 'EVO Canada'
@@ -153,7 +153,7 @@ module ActiveMerchant #:nodoc:
       # The <tt>identification</tt> parameter is the transaction ID, retrieved
       # from {Response#authorization}.
       def refund(money, identification)
-        post = {transactionid: identification}
+        post = { transactionid: identification }
         commit('refund', money, post)
       end
 
@@ -181,7 +181,7 @@ module ActiveMerchant #:nodoc:
       # The <tt>identification</tt> parameter is the transaction ID, retrieved
       # from {Response#authorization}.
       def void(identification)
-        post = {transactionid: identification}
+        post = { transactionid: identification }
         commit('void', nil, post)
       end
 
@@ -192,7 +192,7 @@ module ActiveMerchant #:nodoc:
       # The <tt>identification</tt> parameter is the transaction ID, retrieved
       # from {Response#authorization}.
       def update(identification, options)
-        post = {transactionid: identification}
+        post = { transactionid: identification }
         add_order(post, options)
         commit('update', nil, post)
       end
@@ -279,7 +279,10 @@ module ActiveMerchant #:nodoc:
         response = parse(data)
         message = message_from(response)
 
-        Response.new(success?(response), message, response,
+        Response.new(
+          success?(response),
+          message,
+          response,
           test: test?,
           authorization: response['transactionid'],
           avs_result: { code: response['avsresponse'] },
@@ -292,7 +295,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def post_data(action, parameters = {})
-        post = {type: action}
+        post = { type: action }
 
         if test?
           post[:username] = 'demo'

@@ -27,10 +27,10 @@ class SSLVerify
         success << g
       when :fail
         print 'F'
-        failed << {gateway: g, message: message}
+        failed << { gateway: g, message: }
       when :error
         print 'E'
-        errored << {gateway: g, message: message}
+        errored << { gateway: g, message: }
       end
     end
 
@@ -80,9 +80,9 @@ class SSLVerify
     end
 
     return :success
-  rescue OpenSSL::SSL::SSLError => ex
-    return :fail, ex.inspect
-  rescue Net::HTTPBadResponse, Errno::ETIMEDOUT, EOFError, SocketError, Errno::ECONNREFUSED, Timeout::Error => ex
-    return :error, ex.inspect
+  rescue OpenSSL::SSL::SSLError => e
+    return :fail, e.inspect
+  rescue Net::HTTPBadResponse, Errno::ETIMEDOUT, EOFError, SocketError, Errno::ECONNREFUSED, Timeout::Error => e
+    return :error, e.inspect
   end
 end

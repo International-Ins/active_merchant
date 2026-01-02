@@ -1,10 +1,10 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class NetworkMerchantsGateway < Gateway
       self.live_url = self.test_url = 'https://secure.networkmerchants.com/api/transact.php'
 
       self.supported_countries = ['US']
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover]
+      self.supported_cardtypes = %i[visa master american_express discover]
 
       self.homepage_url = 'http://www.nmi.com/'
       self.display_name = 'Network Merchants (NMI)'
@@ -200,10 +200,13 @@ module ActiveMerchant #:nodoc:
 
         authorization = authorization_from(success, parameters, raw)
 
-        Response.new(success, raw['responsetext'], raw,
+        Response.new(
+          success,
+          raw['responsetext'],
+          raw,
           test: test?,
-          authorization: authorization,
-          avs_result: { code: raw['avsresponse']},
+          authorization:,
+          avs_result: { code: raw['avsresponse'] },
           cvv_result: raw['cvvresponse']
         )
       end

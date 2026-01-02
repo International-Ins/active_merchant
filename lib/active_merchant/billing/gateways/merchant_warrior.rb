@@ -1,8 +1,8 @@
 require 'digest/md5'
 require 'rexml/document'
 
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class MerchantWarriorGateway < Gateway
       TOKEN_TEST_URL = 'https://base.merchantwarrior.com/token/'
       TOKEN_LIVE_URL = 'https://api.merchantwarrior.com/token/'
@@ -11,8 +11,8 @@ module ActiveMerchant #:nodoc:
       POST_LIVE_URL = 'https://api.merchantwarrior.com/post/'
 
       self.supported_countries = ['AU']
-      self.supported_cardtypes = [:visa, :master, :american_express,
-                                  :diners_club, :discover, :jcb]
+      self.supported_cardtypes = %i[visa master american_express
+                                    diners_club discover jcb]
       self.homepage_url = 'https://www.merchantwarrior.com/'
       self.display_name = 'Merchant Warrior'
 
@@ -32,6 +32,8 @@ module ActiveMerchant #:nodoc:
         add_payment_method(post, payment_method)
         add_recurring_flag(post, options)
         add_soft_descriptors(post, options)
+        add_three_ds(post, options)
+        post['storeID'] = options[:store_id] if options[:store_id]
         commit('processAuth', post)
       end
 
@@ -43,6 +45,8 @@ module ActiveMerchant #:nodoc:
         add_payment_method(post, payment_method)
         add_recurring_flag(post, options)
         add_soft_descriptors(post, options)
+        add_three_ds(post, options)
+        post['storeID'] = options[:store_id] if options[:store_id]
         commit('processCard', post)
       end
 
@@ -111,9 +115,9 @@ module ActiveMerchant #:nodoc:
         post['customerCity'] = address[:city]
         post['customerAddress'] = address[:address1]
         post['customerPostCode'] = address[:zip]
-        post['customerIP'] = address[:ip]
-        post['customerPhone'] = address[:phone]
-        post['customerEmail'] = address[:email]
+        post['customerIP'] = address[:ip] || options[:ip]
+        post['customerPhone'] = address[:phone] || address[:phone_number]
+        post['customerEmail'] = address[:email] || options[:email]
       end
 
       def add_order_id(post, options)
@@ -184,8 +188,22 @@ module ActiveMerchant #:nodoc:
         )
       end
 
+      def add_three_ds(post, options)
+        return unless three_d_secure = options[:three_d_secure]
+
+        post.merge!({
+          threeDSEci: three_d_secure[:eci],
+          threeDSXid: three_d_secure[:xid] || three_d_secure[:ds_transaction_id],
+          threeDSCavv: three_d_secure[:cavv],
+          threeDSStatus: three_d_secure[:authentication_response_status],
+          threeDSV2Version: three_d_secure[:version]
+        }.compact)
+      end
+
       def parse(body)
         xml = REXML::Document.new(body)
+
+        return { response_message: 'Invalid gateway response' } unless xml.root.present?
 
         response = {}
         xml.root.elements.to_a.each do |node|

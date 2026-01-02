@@ -13,9 +13,15 @@ class RemoteTest < Test::Unit::TestCase
       order_id: '1',
       billing_address: address({ zip: 90210,
                                  country: 'US',
-                                 state: 'CA'}),
+                                 state: 'CA' }),
       description: 'Store Purchase'
     }
+
+    @amex = credit_card(
+      '378282246310005',
+      verification_value: '1234',
+      brand: 'american_express'
+    )
   end
 
   def test_successful_purchase
@@ -128,6 +134,18 @@ class RemoteTest < Test::Unit::TestCase
     assert_scrubbed(@gateway.options[:refresh_token], transcript)
   end
 
+  def test_transcript_scrubbing_for_amex
+    transcript = capture_transcript(@gateway) do
+      @gateway.purchase(@amount, @amex, @options)
+    end
+    transcript = @gateway.scrub(transcript)
+
+    assert_scrubbed(@amex.number, transcript)
+    assert_scrubbed(@amex.verification_value, transcript)
+    assert_scrubbed(@gateway.options[:access_token], transcript)
+    assert_scrubbed(@gateway.options[:refresh_token], transcript)
+  end
+
   def test_failed_purchase_with_expired_token
     @gateway.options[:access_token] = 'not_a_valid_token'
     response = @gateway.purchase(@amount, @credit_card, @options)
@@ -139,6 +157,25 @@ class RemoteTest < Test::Unit::TestCase
     @gateway.options[:access_token] = 'not_a_valid_token'
     response = @gateway.purchase(@amount, @credit_card, @options.merge(allow_refresh: true))
     assert_success response
+  end
+
+  def test_successful_purchase_without_state_in_address
+    options = {
+      order_id: '1',
+      billing_address:
+        {
+          zip: 90210,
+          # Submitting a value of an empty string for the `state` field
+          # results in a `region is invalid` error message from Quickbooks.
+          # This test ensures that an empty string is not sent from AM.
+          state: '',
+          country: ''
+        }
+    }
+
+    response = @gateway.purchase(@amount, @credit_card, options)
+    assert_success response
+    assert_equal 'CAPTURED', response.message
   end
 
   def test_refresh

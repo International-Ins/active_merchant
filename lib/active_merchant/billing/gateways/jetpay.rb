@@ -1,5 +1,5 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class JetpayGateway < Gateway
       class_attribute :live_us_url, :live_ca_url
 
@@ -8,10 +8,10 @@ module ActiveMerchant #:nodoc:
       self.live_ca_url = 'https://gateway17.jetpay.com/canada-bb'
 
       # The countries the gateway supports merchants from as 2 digit ISO country codes
-      self.supported_countries = ['US', 'CA']
+      self.supported_countries = %w[US CA]
 
       # The card types supported by the payment gateway
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover]
+      self.supported_cardtypes = %i[visa master american_express discover]
 
       # The homepage URL of the gateway
       self.homepage_url = 'http://www.jetpay.com/'
@@ -284,7 +284,8 @@ module ActiveMerchant #:nodoc:
         response = parse(ssl_post(url, request))
 
         success = success?(response)
-        Response.new(success,
+        Response.new(
+          success,
           success ? 'APPROVED' : message_from(response),
           response,
           test: test?,

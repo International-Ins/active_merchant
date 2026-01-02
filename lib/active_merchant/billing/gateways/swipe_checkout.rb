@@ -1,7 +1,7 @@
 require 'json'
 
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class SwipeCheckoutGateway < Gateway
       TRANSACTION_APPROVED_MSG = 'Transaction approved'
       TRANSACTION_DECLINED_MSG = 'Transaction declined'
@@ -13,7 +13,7 @@ module ActiveMerchant #:nodoc:
 
       self.supported_countries = %w[NZ CA]
       self.default_currency = 'NZD'
-      self.supported_cardtypes = [:visa, :master]
+      self.supported_cardtypes = %i[visa master]
       self.homepage_url = 'https://www.swipehq.com/checkout'
       self.display_name = 'Swipe Checkout'
       self.money_format = :dollars
@@ -104,7 +104,8 @@ module ActiveMerchant #:nodoc:
               result = response['data']['result']
               success = (result == 'accepted' || (test? && result == 'test-accepted'))
 
-              Response.new(success,
+              Response.new(
+                success,
                 success ?
                 TRANSACTION_APPROVED_MSG :
                 TRANSACTION_DECLINED_MSG,
@@ -125,7 +126,7 @@ module ActiveMerchant #:nodoc:
         end
       end
 
-      def call_api(api, params=nil)
+      def call_api(api, params = nil)
         params ||= {}
         params[:merchant_id] = @options[:login]
         params[:api_key] = @options[:api_key]
@@ -139,7 +140,7 @@ module ActiveMerchant #:nodoc:
         (test? ? self.test_url : self.live_url) + api
       end
 
-      def build_error_response(message, params={})
+      def build_error_response(message, params = {})
         Response.new(
           false,
           message,

@@ -44,7 +44,7 @@ class RemoteClearhausTest < Test::Unit::TestCase
     assert gateway.options[:private_key]
     assert auth = gateway.authorize(@amount, @credit_card, @options)
     assert_failure auth
-    assert_equal 'Neither PUB key nor PRIV key: not enough data', auth.message
+    assert_equal 'Neither PUB key nor PRIV key: unsupported', auth.message
 
     credentials = fixtures(:clearhaus_secure)
     credentials[:signing_key] = 'foo'
@@ -84,7 +84,7 @@ class RemoteClearhausTest < Test::Unit::TestCase
   def test_successful_purchase_with_more_options
     options = {
       order_id: '1',
-      ip: '127.0.0.1',
+      ip: '127.0.0.1'
     }
 
     response = @gateway.purchase(@amount, @credit_card, @options.merge(options))

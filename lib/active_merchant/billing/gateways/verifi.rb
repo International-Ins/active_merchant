@@ -1,12 +1,12 @@
 require 'rexml/document'
 
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     class VerifiGateway < Gateway
       class VerifiPostData < PostData
         # Fields that will be sent even if they are blank
-        self.required_fields = [:amount, :type, :ccnumber, :ccexp, :firstname, :lastname,
-                                :company, :address1, :address2, :city, :state, :zip, :country, :phone]
+        self.required_fields = %i[amount type ccnumber ccexp firstname lastname
+                                  company address1 address2 city state zip country phone]
       end
 
       self.live_url = self.test_url = 'https://secure.verifi.com/gw/api/transact.php'
@@ -59,7 +59,7 @@ module ActiveMerchant #:nodoc:
       }
 
       self.supported_countries = ['US']
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover]
+      self.supported_cardtypes = %i[visa master american_express discover]
       self.homepage_url = 'http://www.verifi.com/'
       self.display_name = 'Verifi'
 
@@ -180,10 +180,10 @@ module ActiveMerchant #:nodoc:
         # MD5(username|password|orderid|amount|time)
         now = Time.now.to_i.to_s
         md5 = Digest::MD5.new
-        md5 << @options[:login].to_s + '|'
-        md5 << @options[:password].to_s + '|'
-        md5 << options[:order_id].to_s + '|'
-        md5 << amount(money).to_s + '|'
+        md5 << (@options[:login].to_s + '|')
+        md5 << (@options[:password].to_s + '|')
+        md5 << (options[:order_id].to_s + '|')
+        md5 << (amount(money).to_s + '|')
         md5 << now
         post[:key]  = md5.hexdigest
         post[:time] = now
@@ -194,7 +194,10 @@ module ActiveMerchant #:nodoc:
 
         response = parse(ssl_post(self.live_url, post_data(trx_type, post)))
 
-        Response.new(response[:response].to_i == SUCCESS, message_from(response), response,
+        Response.new(
+          response[:response].to_i == SUCCESS,
+          message_from(response),
+          response,
           test: test?,
           authorization: response[:transactionid],
           avs_result: { code: response[:avsresponse] },

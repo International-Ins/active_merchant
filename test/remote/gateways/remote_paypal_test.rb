@@ -145,14 +145,14 @@ class PaypalTest < Test::Unit::TestCase
   def test_successful_incomplete_captures
     auth = @gateway.authorize(100, @credit_card, @params)
     assert_success auth
-    response = @gateway.capture(60, auth.authorization, {complete_type: 'NotComplete'})
+    response = @gateway.capture(60, auth.authorization, { complete_type: 'NotComplete' })
     assert_success response
     assert response.params['transaction_id']
     assert_equal '0.60', response.params['gross_amount']
-    response_2 = @gateway.capture(40, auth.authorization)
-    assert_success response_2
-    assert response_2.params['transaction_id']
-    assert_equal '0.40', response_2.params['gross_amount']
+    response2 = @gateway.capture(40, auth.authorization)
+    assert_success response2
+    assert response2.params['transaction_id']
+    assert_equal '0.40', response2.params['gross_amount']
   end
 
   def test_successful_capture_updating_the_invoice_id
@@ -170,6 +170,16 @@ class PaypalTest < Test::Unit::TestCase
     assert_success auth
     response = @gateway.void(auth.authorization)
     assert_success response
+  end
+
+  def test_purchase_and_inquire
+    purchase_response = @gateway.purchase(@amount, @credit_card, @params)
+    assert_success purchase_response
+    assert purchase_response.params['transaction_id']
+
+    response = @gateway.inquire(purchase_response.authorization, {})
+    assert_success response
+    assert_equal 'Success', response.message
   end
 
   def test_purchase_and_full_credit
@@ -232,9 +242,11 @@ class PaypalTest < Test::Unit::TestCase
     response = @gateway.purchase(900, @credit_card, @params)
     assert_success response
 
-    response = @gateway.transfer([@amount, 'joe@example.com'],
-      [600, 'jane@example.com', {note: 'Thanks for taking care of that'}],
-      subject: 'Your money')
+    response = @gateway.transfer(
+      [@amount, 'joe@example.com'],
+      [600, 'jane@example.com', { note: 'Thanks for taking care of that' }],
+      subject: 'Your money'
+    )
     assert_success response
   end
 
@@ -290,6 +302,21 @@ class PaypalTest < Test::Unit::TestCase
         eci: '05',
         cavv: 'AgAAAAAAAIR8CQrXcIhbQAAAAAA',
         xid: 'MDAwMDAwMDAwMDAwMDAwMzIyNzY='
+      }
+    })
+    response = @gateway.purchase(@amount, @credit_card, params)
+    assert_success response
+    assert response.params['transaction_id']
+  end
+
+  def test_successful_purchase_with_3ds_version_2
+    params = @params.merge!({
+      three_d_secure: {
+        authentication_response_status: 'Y',
+        eci: '05',
+        cavv: 'AgAAAAAAAIR8CQrXcIhbQAAAAAA',
+        ds_transaction_id: 'bDE9Aa1A-C5Ac-AD3a-4bBC-aC918ab1de3E',
+        version: '2.1.0'
       }
     })
     response = @gateway.purchase(@amount, @credit_card, params)

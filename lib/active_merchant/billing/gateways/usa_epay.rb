@@ -1,5 +1,5 @@
-module ActiveMerchant #:nodoc:
-  module Billing #:nodoc:
+module ActiveMerchant # :nodoc:
+  module Billing # :nodoc:
     ##
     # Delegates to the appropriate gateway, either the Transaction or Advanced
     # depending on options passed to new.
@@ -12,7 +12,7 @@ module ActiveMerchant #:nodoc:
       # :software id or :live_url are passed in the options hash it will
       # create an instance of UsaEpayAdvancedGateway.
       #
-      def self.new(options={})
+      def self.new(options = {})
         if options.has_key?(:software_id) || options.has_key?(:live_url)
           UsaEpayAdvancedGateway.new(options)
         else
